@@ -1,12 +1,9 @@
 from fastapi import FastAPI
 
-from app.routers import usuario
-
 app = FastAPI(title="Turnexo")
-
-app.include_router(usuario.router)
 
 
 @app.get("/", summary="Hello World check")
 def read_root():
     return {"message": "Hello World"}
+
