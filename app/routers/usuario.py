@@ -2,7 +2,7 @@ from typing import List
 
 from fastapi import APIRouter
 
-from app.schemas.usuario import Usuario
+from app.schemas.usuario_schema import Usuario
 
 router = APIRouter()
 

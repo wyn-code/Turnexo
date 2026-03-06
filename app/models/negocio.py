@@ -12,5 +12,4 @@ class Negocio(Base):
     ig_url = Column(String)
     facebook_url = Column(String)
     logo = Column(String)
-    created_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    
+    created_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)    

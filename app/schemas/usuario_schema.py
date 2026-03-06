@@ -1,6 +1,5 @@
 from datetime import datetime
 from typing import Optional
-
 from pydantic import BaseModel, EmailStr
 
 
@@ -9,29 +8,18 @@ class UsuarioBase(BaseModel):
     email_us: EmailStr
 
 
-class Usuario(UsuarioBase):
-    id_us: int
-    created_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
-
-
-class UsuarioCrear(UsuarioBase):
+class UsuarioCreate(UsuarioBase):
     contraseña_us: str
 
 
-class UsuarioActualizar(BaseModel):
+class UsuarioUpdate(BaseModel):
     usuario_us: Optional[str] = None
     email_us: Optional[EmailStr] = None
     contraseña_us: Optional[str] = None
 
 
-class UsuarioResponse(BaseModel):
-    """DTO de respuesta: solo campos expuestos en la API (sin contraseña)."""
+class UsuarioResponse(UsuarioBase):
     id_us: int
-    usuario_us: str
-    email_us: EmailStr
     created_at: Optional[datetime] = None
 
     class Config:
