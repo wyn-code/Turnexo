@@ -4,7 +4,6 @@ from app.db.base import Base
 
 class Negocio(Base):
     __tablename__ = "negocio"
-
     id_ng = Column(Integer, primary_key=True, index=True)
     rubro = Column(String(30), nullable=False)
     telefono_ng = Column(String(30), nullable=False)
