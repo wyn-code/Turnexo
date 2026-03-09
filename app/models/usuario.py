@@ -9,5 +9,5 @@ class Usuario(Base):
     id_us = Column(Integer, primary_key=True, index=True)
     usuario_us = Column(String(30), nullable=False, unique=True)
     email_us = Column(String(50), nullable=False, unique=True)
-    contraseña_us = Column(String(50), nullable=False)
-    created_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    contrasena_us = Column(String(50), nullable=False)
+    created_at = Column(DateTime, default=datetime.now)

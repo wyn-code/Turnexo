@@ -9,13 +9,12 @@ class UsuarioBase(BaseModel):
 
 
 class UsuarioCreate(UsuarioBase):
-    contraseña_us: str
-
+    contrasena_us: str
 
 class UsuarioUpdate(BaseModel):
     usuario_us: Optional[str] = None
     email_us: Optional[EmailStr] = None
-    contraseña_us: Optional[str] = None
+    contrasena_us: Optional[str] = None
 
 
 class UsuarioResponse(UsuarioBase):
