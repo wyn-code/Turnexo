@@ -1,6 +1,8 @@
+"""Module for Usuario model definition."""
 from sqlalchemy import Column, Integer, String, DateTime
 from datetime import datetime
-from database import Base
+from app.db.base import Base
+
 
 class Usuario(Base):
     __tablename__ = "usuarios"

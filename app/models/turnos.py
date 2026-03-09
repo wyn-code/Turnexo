@@ -1,7 +1,8 @@
 from sqlalchemy import Column, Integer, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
+from app.db.base import Base
 from datetime import datetime
-from app.database import Base
+
 
 class Turno(Base):
     __tablename__ = "turnos"

@@ -1,12 +1,23 @@
 from fastapi import FastAPI
 
 from app.routers import usuario
+from app.db.base import engine, text
+
 
 app = FastAPI(title="Turnexo")
 
-app.include_router(usuario.router)
+
+@app.get("/", summary="Healthcheck")
+def root():
+    return {"mensaje": "API Turnexo funcionando"}
 
 
-@app.get("/", summary="Hello World check")
-def read_root():
-    return {"message": "Hello World"}
+@app.get("/db-test", summary="Prueba conexión DB")
+def test_db():
+    with engine.connect() as connection:
+        result = connection.execute(text("SELECT 'conexion OK con postgres'"))
+        return {"resultado": result.scalar()}
+
+
+# Incluir routers
+app.include_router(usuario.router, prefix="/api", tags=["usuarios"])

@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean
-from database import Base
+from app.db.base import Base
 
 class Service(Base):
     __tablename__ = "servicio"
