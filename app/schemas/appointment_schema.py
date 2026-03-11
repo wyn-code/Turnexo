@@ -1,38 +1,54 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
 
-class UsuarioBase(BaseModel):
-    usuario_us: str
-    email_us: EmailStr
+class TurnoBase(BaseModel):
+    id_cliente: int
+    id_servicio: int
+    id_estado: Optional[int] = None
+    id_admin: Optional[int] = None
+    id_empleado: Optional[int] = None
+    fecha_hora_inicio: datetime
+    fecha_hora_fin: Optional[datetime] = None
 
 
-class Usuario(UsuarioBase):
-    id_us: int
+class Turno(TurnoBase):
+    id_turnos: int
     created_at: Optional[datetime] = None
+    update_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
 
 
-class UsuarioCrear(UsuarioBase):
-    contraseña_us: str
+class TurnoCrear(TurnoBase):
+    pass
 
 
-class UsuarioActualizar(BaseModel):
-    usuario_us: Optional[str] = None
-    email_us: Optional[EmailStr] = None
-    contraseña_us: Optional[str] = None
+class TurnoActualizar(BaseModel):
+    id_cliente: Optional[int] = None
+    id_servicio: Optional[int] = None
+    id_estado: Optional[int] = None
+    id_admin: Optional[int] = None
+    id_empleado: Optional[int] = None
+    fecha_hora_inicio: Optional[datetime] = None
+    fecha_hora_fin: Optional[datetime] = None
 
 
-class UsuarioResponse(BaseModel):
-    """DTO de respuesta: solo campos expuestos en la API (sin contraseña)."""
-    id_us: int
-    usuario_us: str
-    email_us: EmailStr
+class AppointmentResponse(BaseModel):
+    """DTO de respuesta para turno/appointment."""
+    id_turnos: int
+    id_cliente: int
+    id_servicio: int
+    id_estado: Optional[int] = None
+    id_admin: Optional[int] = None
+    id_empleado: Optional[int] = None
+    fecha_hora_inicio: datetime
+    fecha_hora_fin: Optional[datetime] = None
     created_at: Optional[datetime] = None
+    update_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
