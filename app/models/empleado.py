@@ -3,7 +3,7 @@ from datetime import datetime
 from app.db.base import Base
 
 
-class Service(Base):
+class Empleado(Base):
     __tablaname__ = "empleado"
     id_empleado = Column(Integer, primary_key=True, index=True)
     nombre_empleado = Column(String(30), nullable=False)

@@ -1,12 +1,11 @@
-from sqlalchemy import Column, Integer, String, DateTime
-from datetime import datetime
+from sqlalchemy import Column, Integer, String
+from sqlalchemy.orm import relationship
 from app.db.base import Base
 
-class Usuario(Base):
-    __tablename__ = "cliente"
+class Cliente(Base):
+    __tablename__ = "clientes"
 
-    id_cliente = Column(Integer, primary_key=True, index=True)
-    telefono_clt = Column(String(30), nullable=False, unique=True)
-    nombre_clt = Column(String(30), nullable=False)
-    apellido_clt = Column(String(30), nullable=False)
-    created_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String)
+
+    turnos = relationship("Turno", back_populates="cliente")
