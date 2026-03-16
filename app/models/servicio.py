@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean
 from app.db.base import Base
 
+
 class Servicio(Base):
     __tablename__ = "servicios"
 

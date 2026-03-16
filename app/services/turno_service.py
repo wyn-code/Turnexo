@@ -9,18 +9,23 @@ def listar_turnos(db: Session):
 
 
 def obtener_turno_por_id(db: Session, turno_id: int):
-    return db.query(Turno).filter(Turno.id_turnos == turno_id).first()
+    return db.query(Turno).filter(Turno.id_turno == turno_id).first()
 
 
 def crear_turno(db: Session, turno: TurnoCrear):
     nuevo_turno = Turno(
+        id_negocio=turno.id_negocio,
         id_cliente=turno.id_cliente,
         id_servicio=turno.id_servicio,
         id_estado=turno.id_estado,
-        # id_empleado=turno.id_empleado,
+        id_empleado=turno.id_empleado,
         fecha_hora_inicio=turno.fecha_hora_inicio,
         fecha_hora_fin=turno.fecha_hora_fin,
+        id_admin_aprobador=turno.id_admin_aprobador,
+        aprobado_at=turno.aprobado_at,
+        rechazado_motivo=turno.rechazado_motivo
     )
+
     db.add(nuevo_turno)
     db.commit()
     db.refresh(nuevo_turno)
@@ -28,11 +33,13 @@ def crear_turno(db: Session, turno: TurnoCrear):
 
 
 def actualizar_turno(db: Session, turno_id: int, datos: TurnoActualizar):
-    turno_db = db.query(Turno).filter(Turno.id_turnos == turno_id).first()
+    turno_db = db.query(Turno).filter(Turno.id_turno == turno_id).first()
 
     if not turno_db:
         return None
 
+    if datos.id_negocio is not None:
+        turno_db.id_negocio = datos.id_negocio
     if datos.id_cliente is not None:
         turno_db.id_cliente = datos.id_cliente
     if datos.id_servicio is not None:
@@ -45,6 +52,12 @@ def actualizar_turno(db: Session, turno_id: int, datos: TurnoActualizar):
         turno_db.fecha_hora_inicio = datos.fecha_hora_inicio
     if datos.fecha_hora_fin is not None:
         turno_db.fecha_hora_fin = datos.fecha_hora_fin
+    if datos.id_admin_aprobador is not None:
+        turno_db.id_admin_aprobador = datos.id_admin_aprobador
+    if datos.aprobado_at is not None:
+        turno_db.aprobado_at = datos.aprobado_at
+    if datos.rechazado_motivo is not None:
+        turno_db.rechazado_motivo = datos.rechazado_motivo
 
     db.commit()
     db.refresh(turno_db)
@@ -52,7 +65,7 @@ def actualizar_turno(db: Session, turno_id: int, datos: TurnoActualizar):
 
 
 def borrar_turno(db: Session, turno_id: int):
-    turno_db = db.query(Turno).filter(Turno.id_turnos == turno_id).first()
+    turno_db = db.query(Turno).filter(Turno.id_turno == turno_id).first()
 
     if not turno_db:
         return None
