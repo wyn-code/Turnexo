@@ -17,8 +17,7 @@ def crear_turno(db: Session, turno: TurnoCrear):
         id_cliente=turno.id_cliente,
         id_servicio=turno.id_servicio,
         id_estado=turno.id_estado,
-        id_usuario=turno.id_usuario,
-        id_empleado=turno.id_empleado,
+        # id_empleado=turno.id_empleado,
         fecha_hora_inicio=turno.fecha_hora_inicio,
         fecha_hora_fin=turno.fecha_hora_fin,
     )
@@ -40,8 +39,6 @@ def actualizar_turno(db: Session, turno_id: int, datos: TurnoActualizar):
         turno_db.id_servicio = datos.id_servicio
     if datos.id_estado is not None:
         turno_db.id_estado = datos.id_estado
-    if datos.id_usuario is not None:
-        turno_db.id_usuario = datos.id_usuario
     if datos.id_empleado is not None:
         turno_db.id_empleado = datos.id_empleado
     if datos.fecha_hora_inicio is not None:

@@ -12,3 +12,5 @@ class Negocio(Base):
     facebook_url = Column(String)
     logo = Column(String)
     created_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)    
+
+    turnos = relationship("Turno", back_populates="negocio")
