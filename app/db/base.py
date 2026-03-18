@@ -4,8 +4,6 @@ from decouple import config
 
 DATABASE_URL = config('DB')
 
-print("DB:", DATABASE_URL)
-
 engine = create_engine(DATABASE_URL)
 
 SessionLocal = sessionmaker(
