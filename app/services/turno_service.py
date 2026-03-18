@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.turnos import Turno
 from app.schemas.appointment_schema import TurnoCrear, TurnoActualizar
+from app.models.servicio import Servicio
 
 # Después esto lo ideal es traerlo desde la tabla servicio.
 DURACION_TURNO_POR_DEFECTO_MIN = 30
@@ -19,11 +20,21 @@ def obtener_turno_por_id(db: Session, turno_id: int):
 
 
 def crear_turno(db: Session, turno: TurnoCrear):
+    servicio = db.query(Servicio).filter(
+        Servicio.id_servicio == turno.id_servicio
+    ).first()
+
+    if not servicio:
+        raise HTTPException(
+            status_code=404,
+            detail="El servicio no existe"
+        )
+
     fecha_hora_fin = turno.fecha_hora_fin
 
     if fecha_hora_fin is None:
         fecha_hora_fin = turno.fecha_hora_inicio + timedelta(
-            minutes=DURACION_TURNO_POR_DEFECTO_MIN
+            minutes=servicio.duracion_min
         )
 
     if fecha_hora_fin <= turno.fecha_hora_inicio:

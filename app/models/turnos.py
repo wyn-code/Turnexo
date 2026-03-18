@@ -9,11 +9,14 @@ class Turno(Base):
     __tablename__ = "turno"
 
     id_turno = Column(BigInteger, primary_key=True, index=True)
-    id_negocio = Column(BigInteger, ForeignKey("negocios.id_negocio"), nullable=False)
-    id_cliente = Column(BigInteger, ForeignKey("clientes.id_cliente"), nullable=False)
-    id_servicio = Column(BigInteger, ForeignKey("servicios.id_servicio"), nullable=False)
-    id_estado = Column(SmallInteger, nullable=False)
+    id_negocio = Column(BigInteger, ForeignKey(
+        "negocios.id_negocio"), nullable=False)
+    id_cliente = Column(BigInteger, ForeignKey(
+        "clientes.id_cliente"), nullable=False)
+    id_servicio = Column(BigInteger, ForeignKey(
+        "servicio.id_servicio"), nullable=False)
     id_empleado = Column(BigInteger, ForeignKey("empleados.id_empleado"))
+    id_estado = Column(SmallInteger, nullable=False)
     fecha_hora_inicio = Column(DateTime, nullable=False)
     fecha_hora_fin = Column(DateTime)
     id_admin_aprobador = Column(BigInteger, ForeignKey("usuarios.id_us"))
