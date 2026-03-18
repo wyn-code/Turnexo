@@ -1,3 +1,8 @@
+from typing import Optional
+from pydantic import BaseModel
+from datetime import datetime
+
+
 class NegocioBase(BaseModel):
     rubro: str
     telefono_ng: str

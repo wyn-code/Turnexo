@@ -1,4 +1,3 @@
-"""Module for Usuario model definition."""
 from sqlalchemy import Column, Integer, String, DateTime
 from datetime import datetime
 from app.db.base import Base
