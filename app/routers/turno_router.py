@@ -7,7 +7,7 @@ from app.db.base import SessionLocal
 from app.schemas.appointment_schema import (
     TurnoCrear,
     TurnoActualizar,
-    AppointmentResponse,
+    TurnoResponse,
 )
 from app.services.turno_service import (
     listar_turnos,
@@ -28,12 +28,12 @@ def get_db():
         db.close()
 
 
-@router.get("/", response_model=List[AppointmentResponse])
+@router.get("/", response_model=List[TurnoResponse])
 def listar(db: Session = Depends(get_db)):
     return listar_turnos(db)
 
 
-@router.get("/{turno_id}", response_model=AppointmentResponse)
+@router.get("/{turno_id}", response_model=TurnoResponse)
 def obtener(turno_id: int, db: Session = Depends(get_db)):
     turno = obtener_turno_por_id(db, turno_id)
     if not turno:
@@ -41,12 +41,12 @@ def obtener(turno_id: int, db: Session = Depends(get_db)):
     return turno
 
 
-@router.post("/", response_model=AppointmentResponse)
+@router.post("/", response_model=TurnoResponse)
 def crear(turno: TurnoCrear, db: Session = Depends(get_db)):
     return crear_turno(db, turno)
 
 
-@router.put("/{turno_id}", response_model=AppointmentResponse)
+@router.put("/{turno_id}", response_model=TurnoResponse)
 def actualizar(turno_id: int, datos: TurnoActualizar, db: Session = Depends(get_db)):
     turno = actualizar_turno(db, turno_id, datos)
     if not turno:
