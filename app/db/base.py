@@ -1,8 +1,10 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
-from  import DB
+from decouple import config
 
-DATABASE_URL = DB
+DATABASE_URL = config('DB')
+
+print("DB:", DATABASE_URL)
 
 engine = create_engine(DATABASE_URL)
 
