@@ -1,7 +1,10 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
+from decouple import config
 
-DATABASE_URL = "postgresql+psycopg://postgres:123qwe@aws-1-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
+DATABASE_URL = config('DB')
+
+print("DB:", DATABASE_URL)
 
 engine = create_engine(DATABASE_URL)
 
