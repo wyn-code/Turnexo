@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+
+# Entorno y secretos
+.env
+.env.*
+
+# Entornos virtuales
+venv/
+.venv/
+
