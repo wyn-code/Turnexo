@@ -1,7 +1,6 @@
 from sqlalchemy import Column, DateTime, ForeignKey, Text, SmallInteger, BigInteger
 from sqlalchemy.orm import relationship
 from datetime import datetime
-
 from app.db.base import Base
 
 
@@ -11,7 +10,7 @@ class Turno(Base):
     id_turno = Column(BigInteger, primary_key=True, index=True)
     id_negocio = Column(BigInteger, ForeignKey("negocios.id_negocio"), nullable=False)
     id_cliente = Column(BigInteger, ForeignKey("clientes.id_cliente"), nullable=False)
-    id_servicio = Column(BigInteger, ForeignKey("servicios.id_servicio"), nullable=False)
+    id_servicio = Column(BigInteger, ForeignKey("servicio.id_servicio"), nullable=False)
     id_estado = Column(SmallInteger, nullable=False)
     id_empleado = Column(BigInteger, ForeignKey("empleado.id_empleado"))
     fecha_hora_inicio = Column(DateTime, nullable=False)
@@ -25,5 +24,5 @@ class Turno(Base):
     negocio = relationship("Negocio", back_populates="turnos")
     cliente = relationship("Cliente", back_populates="turnos")
     empleado = relationship("Empleado", back_populates="turnos")
-    servicio = relationship("Servicio")
+    servicio = relationship("Servicio", back_populates="turnos")
     admin_aprobador = relationship("Usuario")
