@@ -1,7 +1,8 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
+from decouple import config
 
-DATABASE_URL = "postgresql+psycopg://postgres:123qwe@127.0.0.1:5432/Turnexo"
+DATABASE_URL = config('DB')
 
 engine = create_engine(DATABASE_URL)
 

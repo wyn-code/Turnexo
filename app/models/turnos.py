@@ -13,7 +13,7 @@ class Turno(Base):
     id_cliente = Column(BigInteger, ForeignKey("clientes.id_cliente"), nullable=False)
     id_servicio = Column(BigInteger, ForeignKey("servicios.id_servicio"), nullable=False)
     id_estado = Column(SmallInteger, nullable=False)
-    id_empleado = Column(BigInteger, ForeignKey("empleados.id_empleado"))
+    id_empleado = Column(BigInteger, ForeignKey("empleado.id_empleado"))
     fecha_hora_inicio = Column(DateTime, nullable=False)
     fecha_hora_fin = Column(DateTime)
     id_admin_aprobador = Column(BigInteger, ForeignKey("usuarios.id_us"))
