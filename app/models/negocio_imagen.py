@@ -18,4 +18,7 @@ class NegocioImagen(Base):
     es_portada = Column(Boolean, default=False, nullable=False)
     orden = Column(Integer, default=0, nullable=False)
 
-    negocio = relationship("Negocio", back_populates="imagenes")
+    negocio = relationship(
+        "Negocio",
+        back_populates="imagenes",
+    )

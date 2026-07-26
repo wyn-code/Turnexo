@@ -26,11 +26,53 @@ class Negocio(Base):
     latitud = Column(Float, nullable=True)
     longitud = Column(Float, nullable=True)
 
-    turnos = relationship("Turno", back_populates="negocio")
-    servicios = relationship("Servicio", back_populates="negocio", cascade="all, delete-orphan")
-    empleados = relationship("Empleado", back_populates="negocio", cascade="all, delete-orphan")
-    usuario = relationship("Usuario", back_populates="negocio")
-    categoria = relationship("Categoria", back_populates="negocios")
-    horarios = relationship("HorarioNegocio", back_populates="negocio", cascade="all, delete-orphan")
-    imagenes = relationship("NegocioImagen",back_populates="negocio",cascade="all, delete-orphan", order_by="NegocioImagen.orden",)
-    suscripciones = relationship("Suscripcion", back_populates="negocio")
+    usuario = relationship(
+        "Usuario",
+        back_populates="negocios",
+    )
+    categoria = relationship(
+        "Categoria",
+        back_populates="negocios",
+    )
+    turnos = relationship(
+        "Turno",
+        back_populates="negocio",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    servicios = relationship(
+        "Servicio",
+        back_populates="negocio",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    empleados = relationship(
+        "Empleado",
+        back_populates="negocio",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    horarios = relationship(
+        "HorarioNegocio",
+        back_populates="negocio",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    imagenes = relationship(
+        "NegocioImagen",
+        back_populates="negocio",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    suscripciones = relationship(
+        "Suscripcion",
+        back_populates="negocio",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    

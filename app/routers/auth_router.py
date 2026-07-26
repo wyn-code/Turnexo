@@ -9,10 +9,12 @@ from app.services.auth_service import (
     reset_password,
     verify_credentials,
     verify_2fa,
+    login_with_google,
 )
 from app.schemas.auth_schema import (
     AuthResponse,
     ForgotPasswordRequest,
+    GoogleLoginRequest,
     LoginRequest,
     RegisterRequest,
     ResetPasswordRequest,
@@ -47,6 +49,22 @@ def register(
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     _, token = login_user(db, payload)
+    return token
+
+@router.post("/google")
+def google_login(
+    payload: GoogleLoginRequest,
+    db: Session = Depends(get_db),
+):
+    usuario, token = login_with_google(db, payload.id_token)
+
+    if token is None:
+        return {
+            "message":
+                "Cuenta creada. Revisá tu email para verificarla.",
+            "email": usuario.email_us,
+        }
+
     return token
 
 @router.get("/me")

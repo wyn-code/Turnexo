@@ -9,8 +9,14 @@ class Suscripcion(Base):
 
 
     id_suscripcion = Column(Integer, primary_key=True, index=True)
-    id_negocio = Column(Integer, ForeignKey(
-        "negocio.id_negocio"), nullable=False)
+    id_negocio = Column(
+        Integer,
+        ForeignKey(
+            "negocio.id_negocio",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
     id_plan = Column(Integer, ForeignKey("planes.id_plan"), nullable=False)
     estado = Column(String(20), nullable=False, default="activa")
     fecha_inicio = Column(DateTime, default=datetime.now, nullable=False)
@@ -19,6 +25,9 @@ class Suscripcion(Base):
     proveedor_pago = Column(String(50), nullable=True)
     external_subscription_id = Column(String(150), nullable=True)
 
-    negocio = relationship("Negocio", back_populates="suscripciones")
+    negocio = relationship(
+        "Negocio",
+        back_populates="suscripciones",
+    )
     plan = relationship("Plan", back_populates="suscripciones")
 

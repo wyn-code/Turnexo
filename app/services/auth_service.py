@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 import secrets
 import re
 import random
-
+from google.auth.exceptions import GoogleAuthError
 from app.services.email_service import send_otp_email
 
 def _utcnow():
@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
+    GOOGLE_CLIENT_ID,
 )
 from app.core.security import (
     create_access_token,
@@ -434,3 +435,111 @@ def verify_2fa(
     return TokenResponse(
         access_token=access_token,
     )
+
+
+def login_with_google(
+    db: Session,
+    id_token: str,
+) -> tuple[Usuario, TokenResponse]:
+    from google.oauth2 import id_token as google_id_token
+    from google.auth.transport import requests as google_requests
+    from google.auth.exceptions import GoogleAuthError
+
+    print("=" * 60)
+    print("GOOGLE_CLIENT_ID:", GOOGLE_CLIENT_ID)
+    print("TOKEN (primeros 40):", id_token[:40])
+    print("=" * 60)
+
+    try:
+        payload = google_id_token.verify_oauth2_token(
+            id_token,
+            google_requests.Request(),
+            GOOGLE_CLIENT_ID,
+        )
+
+        print("GOOGLE PAYLOAD:", payload)
+
+    except GoogleAuthError as e:
+        print("GOOGLE AUTH ERROR:", repr(e))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+        )
+
+    except Exception as e:
+        print("GENERAL ERROR:", repr(e))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+        )
+    email = payload.get("email")
+    name = payload.get("name", "")
+
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se pudo obtener el email de Google",
+        )
+
+    usuario = (
+        db.query(Usuario)
+        .filter(Usuario.email_us == email)
+        .first()
+    )
+
+    if usuario:
+        if usuario.auth_provider != "google":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Este email ya está registrado con contraseña. "
+                    "Iniciá sesión con email y contraseña."
+                ),
+            )
+
+        token = create_access_token(
+            subject=usuario.id_us,
+            expires_delta=timedelta(
+                minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+            ),
+        )
+
+        return usuario, TokenResponse(
+            access_token=token,
+        )
+
+    username_base = email.split("@")[0]
+    username = username_base
+    counter = 1
+    while (
+        db.query(Usuario)
+        .filter(Usuario.usuario_us == username)
+        .first()
+    ):
+        username = f"{username_base}{counter}"
+        counter += 1
+
+    verification_token = secrets.token_urlsafe(32)
+
+    usuario = Usuario(
+        usuario_us=username,
+        email_us=email,
+        contrasena_us=None,
+        email_verified=False,
+        auth_provider="google",
+        verification_token=verification_token,
+        verification_token_expiration=(
+            _utcnow() + timedelta(hours=24)
+        ),
+    )
+
+    db.add(usuario)
+    db.commit()
+    db.refresh(usuario)
+
+    send_verification_email(
+        usuario.email_us,
+        verification_token,
+    )
+
+    return usuario, None

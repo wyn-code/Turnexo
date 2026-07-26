@@ -82,6 +82,14 @@ class AuthResponse(BaseModel):
 
 
 # =====================================
+# GOOGLE LOGIN
+# =====================================
+
+class GoogleLoginRequest(BaseModel):
+    id_token: str
+
+
+# =====================================
 # FORGOT PASSWORD
 # =====================================
 

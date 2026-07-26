@@ -36,7 +36,7 @@ class Usuario(Base):
 
     contrasena_us = Column(
         String(255),
-        nullable=False,
+        nullable=True,
     )
 
     role = Column(
@@ -104,7 +104,19 @@ class Usuario(Base):
         nullable=True,
     )
 
-    negocio = relationship(
+    # ==========================
+    # AUTH PROVIDER
+    # ==========================
+
+    auth_provider = Column(
+        String(20),
+        default="local",
+        nullable=False,
+    )
+
+    negocios = relationship(
         "Negocio",
         back_populates="usuario",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
