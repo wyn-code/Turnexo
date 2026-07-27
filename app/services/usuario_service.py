@@ -115,7 +115,7 @@ def borrar_usuario(db: Session, usuario_id: int):
 def ver_usuarios_admin(db: Session):
     usuarios = (
         db.query(Usuario)
-        .options(joinedload(Usuario.negocio))
+        .options(joinedload(Usuario.negocios))
         .all()
     )
 
@@ -127,7 +127,7 @@ def ver_usuarios_admin(db: Session):
         "role_us": u.role,
         "estado": u.estado,
         "negocio": ", ".join(
-            n.nombre for n in u.negocio
+            n.nombre for n in u.negocios
         ),
     }
     for u in usuarios

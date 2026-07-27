@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.core.config import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     GOOGLE_CLIENT_ID,
+    TWO_FACTOR_TOKEN_EXPIRE_HOURS,
 )
 from app.core.security import (
     create_access_token,
@@ -428,7 +429,7 @@ def verify_2fa(
     access_token = create_access_token(
         subject=usuario.id_us,
         expires_delta=timedelta(
-            minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+            hours=TWO_FACTOR_TOKEN_EXPIRE_HOURS
         ),
     )
 

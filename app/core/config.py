@@ -4,6 +4,7 @@ from decouple import config
 SECRET_KEY = config("SECRET_KEY", default="change-this-secret-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(config("ACCESS_TOKEN_EXPIRE_MINUTES", default=60))
+TWO_FACTOR_TOKEN_EXPIRE_HOURS = int(config("TWO_FACTOR_TOKEN_EXPIRE_HOURS", default=9))
 RESEND_API_KEY = config("RESEND_API_KEY")
 FRONTEND_URL = "https://www.turnogo.app"
 MAPBOX_ACCESS_TOKEN = config("MAPBOX_ACCESS_TOKEN")
