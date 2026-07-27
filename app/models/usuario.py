@@ -104,6 +104,11 @@ class Usuario(Base):
         nullable=True,
     )
 
+    last_2fa_verified_at = Column(
+        DateTime,
+        nullable=True,
+    )
+
     # ==========================
     # AUTH PROVIDER
     # ==========================

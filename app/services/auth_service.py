@@ -368,6 +368,23 @@ def verify_credentials(
             detail="Debes verificar tu email antes de iniciar sesión",
         )
 
+    if (
+        usuario.last_2fa_verified_at is not None
+        and usuario.last_2fa_verified_at
+        >= _utcnow() - timedelta(hours=TWO_FACTOR_TOKEN_EXPIRE_HOURS)
+    ):
+        access_token = create_access_token(
+            subject=usuario.id_us,
+            expires_delta=timedelta(
+                hours=TWO_FACTOR_TOKEN_EXPIRE_HOURS
+            ),
+        )
+        return {
+            "success": True,
+            "message": "Token emitido",
+            "access_token": access_token,
+        }
+
     otp = f"{random.randint(100000, 999999)}"
 
     usuario.otp_code = otp
@@ -423,6 +440,7 @@ def verify_2fa(
 
     usuario.otp_code = None
     usuario.otp_expires_at = None
+    usuario.last_2fa_verified_at = _utcnow()
 
     db.commit()
 
