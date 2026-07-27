@@ -91,12 +91,20 @@ def validar_turno_dentro_del_horario(
     hora_fin = fin.time()
 
     for horario in horarios:
-        if (
-            horario.dia_semana in dias_semana_validos
-            and horario.hora_apertura <= hora_inicio
-            and hora_fin <= horario.hora_cierre
-        ):
-            return
+        if horario.dia_semana not in dias_semana_validos:
+            continue
+
+        apertura = horario.hora_apertura
+        cierre = horario.hora_cierre
+        cruza_medianoche = cierre <= apertura
+
+        if cruza_medianoche:
+            hora_en_rango = lambda t: t >= apertura or t <= cierre
+            if hora_en_rango(hora_inicio) and hora_en_rango(hora_fin):
+                return
+        else:
+            if apertura <= hora_inicio and hora_fin <= cierre:
+                return
 
     raise HTTPException(
         status_code=400,
