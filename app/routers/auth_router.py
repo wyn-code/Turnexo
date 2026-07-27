@@ -9,6 +9,7 @@ from app.services.auth_service import (
     reset_password,
     verify_credentials,
     verify_2fa,
+    resend_otp_code,
     login_with_google,
 )
 from app.schemas.auth_schema import (
@@ -18,6 +19,7 @@ from app.schemas.auth_schema import (
     LoginRequest,
     RegisterRequest,
     ResetPasswordRequest,
+    ResendCodeRequest,
     Verify2FARequest,
     TokenResponse,
 )
@@ -147,4 +149,14 @@ def verify_2fa_endpoint(
         db,
         payload.email_us,
         payload.otp_code,
+    )
+
+@router.post("/resend-code")
+def resend_code_endpoint(
+    payload: ResendCodeRequest,
+    db: Session = Depends(get_db),
+):
+    return resend_otp_code(
+        db,
+        payload.email_us,
     )

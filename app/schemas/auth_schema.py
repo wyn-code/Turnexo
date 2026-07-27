@@ -60,6 +60,13 @@ class Verify2FARequest(BaseModel):
     )
 
 # =====================================
+# RESEND CODE
+# =====================================
+
+class ResendCodeRequest(BaseModel):
+    email_us: EmailStr
+
+# =====================================
 # TOKEN
 # =====================================
 

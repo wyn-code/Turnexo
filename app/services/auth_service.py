@@ -389,7 +389,7 @@ def verify_credentials(
 
     usuario.otp_code = otp
     usuario.otp_expires_at = (
-        _utcnow() + timedelta(minutes=10)
+        _utcnow() + timedelta(hours=TWO_FACTOR_TOKEN_EXPIRE_HOURS)
     )
 
     db.commit()
@@ -423,19 +423,19 @@ def verify_2fa(
             detail="Usuario no encontrado",
         )
 
-    if usuario.otp_code != code:
-        raise HTTPException(
-            status_code=401,
-            detail="Código incorrecto",
-        )
-
     if (
         usuario.otp_expires_at is None
         or usuario.otp_expires_at < _utcnow()
     ):
         raise HTTPException(
             status_code=401,
-            detail="Código expirado",
+            detail="El código de verificación ha expirado. Solicitá uno nuevo.",
+        )
+
+    if usuario.otp_code != code:
+        raise HTTPException(
+            status_code=401,
+            detail="Código incorrecto",
         )
 
     usuario.otp_code = None
@@ -454,6 +454,67 @@ def verify_2fa(
     return TokenResponse(
         access_token=access_token,
     )
+
+
+def resend_otp_code(
+    db: Session,
+    email: str,
+):
+    usuario = (
+        db.query(Usuario)
+        .filter(
+            Usuario.email_us == email
+        )
+        .first()
+    )
+
+    if not usuario:
+        raise HTTPException(
+            status_code=401,
+            detail="Usuario no encontrado",
+        )
+
+    if not usuario.email_verified:
+        raise HTTPException(
+            status_code=403,
+            detail="Debes verificar tu email antes de iniciar sesión",
+        )
+
+    if (
+        usuario.last_2fa_verified_at is not None
+        and usuario.last_2fa_verified_at
+        >= _utcnow() - timedelta(hours=TWO_FACTOR_TOKEN_EXPIRE_HOURS)
+    ):
+        access_token = create_access_token(
+            subject=usuario.id_us,
+            expires_delta=timedelta(
+                hours=TWO_FACTOR_TOKEN_EXPIRE_HOURS
+            ),
+        )
+        return {
+            "success": True,
+            "message": "Token emitido",
+            "access_token": access_token,
+        }
+
+    otp = f"{random.randint(100000, 999999)}"
+
+    usuario.otp_code = otp
+    usuario.otp_expires_at = (
+        _utcnow() + timedelta(hours=TWO_FACTOR_TOKEN_EXPIRE_HOURS)
+    )
+
+    db.commit()
+
+    send_otp_email(
+        usuario.email_us,
+        otp,
+    )
+
+    return {
+        "success": True,
+        "message": "Código reenviado al correo",
+    }
 
 
 def login_with_google(
