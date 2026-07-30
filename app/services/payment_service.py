@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import mercadopago
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -13,6 +13,12 @@ sdk = mercadopago.SDK(MERCADOPAGO_ACCESS_TOKEN)
 
 def crear_preferencia_mp(db: Session, negocio: Negocio, plan: Plan) -> dict:
     referencia_externa = f"{negocio.id_negocio}:{plan.id_plan}"
+
+    db.query(Suscripcion).filter(
+        Suscripcion.id_negocio == negocio.id_negocio,
+        Suscripcion.estado == "pendiente",
+    ).update({"estado": "cancelada"})
+    db.commit()
 
     preference_data = {
         "items": [
@@ -31,6 +37,7 @@ def crear_preferencia_mp(db: Session, negocio: Negocio, plan: Plan) -> dict:
         "auto_return": "approved",
         "notification_url": f"{BACKEND_URL.rstrip('/')}/api/pagos/webhook",
         "external_reference": referencia_externa,
+        "date_of_expiration": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
     }
 
     result = sdk.preference().create(preference_data)
@@ -43,7 +50,7 @@ def crear_preferencia_mp(db: Session, negocio: Negocio, plan: Plan) -> dict:
 
     response = result["response"]
     preference_id = response["id"]
-    init_point = response["init_point"]
+    init_point = response.get("sandbox_init_point") or response["init_point"]
 
     fecha_inicio = datetime.now()
     fecha_fin = fecha_inicio + timedelta(days=plan.duracion_dias)
