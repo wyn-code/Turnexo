@@ -47,6 +47,7 @@ class NegocioImagenResponse(BaseModel):
 
 class NegocioListResponse(BaseModel):
     id_negocio: int
+    usuario_id: int
     nombre: str
     wsp: str
     telefono: str | None = None
