@@ -17,6 +17,13 @@ sdk = mercadopago.SDK(MERCADOPAGO_ACCESS_TOKEN)
 def crear_preferencia_mp(db: Session, negocio: Negocio, plan: Plan) -> dict:
     referencia_externa = f"{negocio.id_negocio}:{plan.id_plan}"
 
+    _token = str(MERCADOPAGO_ACCESS_TOKEN)
+    logger.info(
+        "MP DIAG: token_prefix=%s client_id=%s",
+        _token[:10],
+        _token.split("-")[1] if "-" in _token else "?",
+    )
+
     db.query(Suscripcion).filter(
         Suscripcion.id_negocio == negocio.id_negocio,
         Suscripcion.estado == "pendiente",
@@ -53,13 +60,26 @@ def crear_preferencia_mp(db: Session, negocio: Negocio, plan: Plan) -> dict:
 
     response = result["response"]
     preference_id = response["id"]
-    init_point = response["init_point"]
+    _es_test = str(MERCADOPAGO_ACCESS_TOKEN).startswith("TEST-")
+    init_point = (
+        response["sandbox_init_point"]
+        if _es_test and response.get("sandbox_init_point")
+        else response["init_point"]
+    )
 
     logger.info(
         "Preferencia MP creada: collector_id=%s preference_id=%s es_sandbox=%s",
         response.get("collector_id"),
         preference_id,
         "sandbox" in init_point,
+    )
+
+    logger.info(
+        "MP DIAG preferencia: collector_id=%s preference_id=%s init_point=%s sandbox_init_point=%s",
+        response.get("collector_id"),
+        preference_id,
+        init_point,
+        response.get("sandbox_init_point"),
     )
 
     fecha_inicio = datetime.now()
