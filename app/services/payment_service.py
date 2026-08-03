@@ -1,9 +1,12 @@
+import logging
 from datetime import datetime, timedelta, timezone
 import mercadopago
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.config import MERCADOPAGO_ACCESS_TOKEN, BACKEND_URL, FRONTEND_URL
+
+logger = logging.getLogger(__name__)
 from app.models.negocio import Negocio
 from app.models.plan import Plan
 from app.models.suscripcion import Suscripcion
@@ -50,7 +53,14 @@ def crear_preferencia_mp(db: Session, negocio: Negocio, plan: Plan) -> dict:
 
     response = result["response"]
     preference_id = response["id"]
-    init_point = response.get("sandbox_init_point") or response["init_point"]
+    init_point = response["init_point"]
+
+    logger.info(
+        "Preferencia MP creada: collector_id=%s preference_id=%s es_sandbox=%s",
+        response.get("collector_id"),
+        preference_id,
+        "sandbox" in init_point,
+    )
 
     fecha_inicio = datetime.now()
     fecha_fin = fecha_inicio + timedelta(days=plan.duracion_dias)
