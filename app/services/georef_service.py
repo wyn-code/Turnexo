@@ -1,29 +1,28 @@
+# georef_service.py
 import requests
+from sqlalchemy.orm import Session
+from app.models.provincia import Provincia
+from app.models.localidad import Localidad
 
 BASE_URL = "https://apis.datos.gob.ar/georef/api"
 
 
-def obtener_provincias():
-    response = requests.get(f"{BASE_URL}/provincias")
-
-    response.raise_for_status()
-
-    data = response.json()
-
-    return data["provincias"]
+def obtener_provincias(db: Session):
+    provincias = db.query(Provincia).order_by(Provincia.nombre).all()
+    return [
+        {"id_provincia": p.id_provincia, "nombre": p.nombre}
+        for p in provincias
+    ]
 
 
-def obtener_localidades(provincia: str):
-    response = requests.get(
-        f"{BASE_URL}/localidades",
-        params={
-            "provincia": provincia,
-            "max": 5000
-        }
+def obtener_localidades(db: Session, id_provincia: int):
+    localidades = (
+        db.query(Localidad)
+        .filter(Localidad.id_provincia == id_provincia)
+        .order_by(Localidad.nombre)
+        .all()
     )
-
-    response.raise_for_status()
-
-    data = response.json()
-
-    return data["localidades"]
+    return [
+        {"id_localidad": l.id_localidad, "nombre": l.nombre}
+        for l in localidades
+    ]

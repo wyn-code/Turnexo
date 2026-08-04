@@ -211,13 +211,21 @@ def crear_negocio_completo(db: Session, data: NegocioCompleteCreate):
     if not categoria:
         raise HTTPException(400, "Categoría no válida")
 
-    localidad = db.query(Localidad).filter(
-        Localidad.id_localidad == data.id_localidad
-    ).first()
+    localidad = None
+    if data.id_localidad:
+        localidad = db.query(Localidad).filter(
+            Localidad.id_localidad == data.id_localidad
+        ).first()
+        if not localidad:
+            raise HTTPException(400, f"Localidad no válida: {data.id_localidad}")
 
-    provincia = db.query(Provincia).filter(
-        Provincia.id_provincia == data.id_provincia
-    ).first()
+    provincia = None
+    if data.id_provincia:
+        provincia = db.query(Provincia).filter(
+            Provincia.id_provincia == data.id_provincia
+        ).first()
+        if not provincia:
+            raise HTTPException(400, f"Provincia no válida: {data.id_provincia}")
 
     # 🔥 GEOCODING MEJORADO
     latitud, longitud = None, None

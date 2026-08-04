@@ -1,4 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from app.db.database import SessionLocal
 from app.services.georef_service import (
     obtener_provincias,
     obtener_localidades
@@ -11,14 +13,22 @@ router = APIRouter(
 )
 
 
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 @router.get("/provincias")
-def provincias():
-    return obtener_provincias()
+def provincias(db: Session = Depends(get_db)):
+    return obtener_provincias(db)
 
 
 @router.get("/localidades")
-def localidades(provincia: str):
-    return obtener_localidades(provincia)
+def localidades(id_provincia: int, db: Session = Depends(get_db)):
+    return obtener_localidades(db, id_provincia)
 
 
 @router.get("/test-geocoding")
