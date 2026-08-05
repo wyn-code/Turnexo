@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 import mercadopago
@@ -50,7 +51,11 @@ def crear_preferencia_mp(db: Session, negocio: Negocio, plan: Plan) -> dict:
         "date_of_expiration": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
     }
 
+    logger.info("MP DIAG preference_data: %s", json.dumps(preference_data, ensure_ascii=False))
+
     result = sdk.preference().create(preference_data)
+
+    logger.info("MP DIAG create_response: %s", json.dumps(result, ensure_ascii=False, default=str))
 
     if result["status"] not in (200, 201):
         raise HTTPException(
@@ -99,10 +104,14 @@ def crear_preferencia_mp(db: Session, negocio: Negocio, plan: Plan) -> dict:
     db.commit()
     db.refresh(suscripcion)
 
-    return {
+    payload = {
         "init_point": init_point,
         "preference_id": preference_id,
+        "collector_id": response.get("collector_id"),
+        "sandbox_init_point": response.get("sandbox_init_point"),
     }
+    logger.info("MP DIAG return_to_frontend: %s", json.dumps(payload, ensure_ascii=False))
+    return payload
 
 
 def procesar_pago_exitoso(db: Session, negocio_id: int, plan_id: int, preference_id: str) -> Suscripcion:

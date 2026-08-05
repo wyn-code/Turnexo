@@ -41,6 +41,8 @@ class CrearPreferenciaRequest(BaseModel):
 class CrearPreferenciaResponse(BaseModel):
     init_point: str
     preference_id: str
+    collector_id: int | None = None
+    sandbox_init_point: str | None = None
 
 
 class RenovacionAutomaticaRequest(BaseModel):
