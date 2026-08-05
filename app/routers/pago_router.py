@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
@@ -12,6 +14,8 @@ from app.schemas.plan_schema import (
     SuscripcionResponse,
 )
 from app.services import payment_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/pagos", tags=["Pagos"])
 
@@ -55,8 +59,8 @@ async def webhook_mercadopago(request: Request, db: Session = Depends(get_db)):
                         payment_service.procesar_pago_exitoso(
                             db, negocio_id, plan_id, preference_id
                         )
-        except Exception:
-            pass
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.exception("MP webhook: error procesando payment_id=%s: %s", payment_id, exc)
 
     return {"status": "ok"}
 

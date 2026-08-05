@@ -108,6 +108,107 @@ def test_procesar_pago_exitoso_sin_suscripcion_previa(db, seed_data):
     assert result.external_subscription_id == "pref_test_789"
 
 
+def test_procesar_pago_exitoso_fallback_sin_preference_id(db, seed_data):
+    plan = _crear_plan_basico(db)
+    negocio = seed_data["negocio"]
+
+    suscripcion = Suscripcion(
+        id_negocio=negocio.id_negocio,
+        id_plan=plan.id_plan,
+        estado="pendiente",
+        fecha_inicio=datetime.now(),
+        fecha_fin=datetime.now() + timedelta(days=30),
+        proveedor_pago="mercadopago",
+        external_subscription_id="pref_real_1",
+    )
+    db.add(suscripcion)
+    db.commit()
+
+    result = payment_service.procesar_pago_exitoso(
+        db, negocio.id_negocio, plan.id_plan, ""
+    )
+
+    assert result.id_suscripcion == suscripcion.id_suscripcion
+    assert result.estado == "activa"
+
+
+def test_procesar_pago_exitoso_cancela_otras_pendientes(db, seed_data):
+    plan = _crear_plan_basico(db)
+    negocio = seed_data["negocio"]
+
+    justa = Suscripcion(
+        id_negocio=negocio.id_negocio,
+        id_plan=plan.id_plan,
+        estado="pendiente",
+        fecha_inicio=datetime.now(),
+        fecha_fin=datetime.now() + timedelta(days=30),
+        proveedor_pago="mercadopago",
+        external_subscription_id="pref_vieja_1",
+    )
+    db.add(justa)
+    db.flush()
+
+    db.add(Suscripcion(
+        id_negocio=negocio.id_negocio,
+        id_plan=plan.id_plan,
+        estado="pendiente",
+        fecha_inicio=datetime.now(),
+        fecha_fin=datetime.now() + timedelta(days=30),
+        proveedor_pago="mercadopago",
+        external_subscription_id="pref_vieja_2",
+    ))
+    db.commit()
+
+    result = payment_service.procesar_pago_exitoso(
+        db, negocio.id_negocio, plan.id_plan, "pref_vieja_1"
+    )
+
+    pendientes = (
+        db.query(Suscripcion)
+        .filter(
+            Suscripcion.id_negocio == negocio.id_negocio,
+            Suscripcion.estado == "pendiente",
+        )
+        .all()
+    )
+    assert result.estado == "activa"
+    assert len(pendientes) == 0
+
+
+def test_procesar_pago_exitoso_renueva_suscripcion_activa(db, seed_data):
+    plan = _crear_plan_basico(db)
+    negocio = seed_data["negocio"]
+    fecha_fin = datetime.now() + timedelta(days=5)
+
+    suscripcion = Suscripcion(
+        id_negocio=negocio.id_negocio,
+        id_plan=plan.id_plan,
+        estado="activa",
+        fecha_inicio=datetime.now(),
+        fecha_fin=fecha_fin,
+        proveedor_pago="mercadopago",
+        external_subscription_id="pref_activa_1",
+    )
+    db.add(suscripcion)
+    db.commit()
+
+    result = payment_service.procesar_pago_exitoso(
+        db, negocio.id_negocio, plan.id_plan, "pref_activa_1"
+    )
+
+    activas = (
+        db.query(Suscripcion)
+        .filter(
+            Suscripcion.id_negocio == negocio.id_negocio,
+            Suscripcion.estado == "activa",
+        )
+        .all()
+    )
+    assert result.estado == "activa"
+    assert len(activas) == 1
+    assert result.fecha_fin == fecha_fin + timedelta(days=plan.duracion_dias)
+
+
 def test_obtener_suscripcion_actual_con_suscripcion(db, seed_data):
     plan = _crear_plan_basico(db)
     negocio = seed_data["negocio"]

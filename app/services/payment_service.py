@@ -1,4 +1,3 @@
-import json
 import logging
 from datetime import datetime, timedelta, timezone
 import mercadopago
@@ -17,13 +16,6 @@ sdk = mercadopago.SDK(MERCADOPAGO_ACCESS_TOKEN)
 
 def crear_preferencia_mp(db: Session, negocio: Negocio, plan: Plan) -> dict:
     referencia_externa = f"{negocio.id_negocio}:{plan.id_plan}"
-
-    _token = str(MERCADOPAGO_ACCESS_TOKEN)
-    logger.info(
-        "MP DIAG: token_prefix=%s client_id=%s",
-        _token[:10],
-        _token.split("-")[1] if "-" in _token else "?",
-    )
 
     db.query(Suscripcion).filter(
         Suscripcion.id_negocio == negocio.id_negocio,
@@ -51,8 +43,6 @@ def crear_preferencia_mp(db: Session, negocio: Negocio, plan: Plan) -> dict:
         "date_of_expiration": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
     }
 
-    logger.info("MP DIAG preference_data: %s", json.dumps(preference_data, ensure_ascii=False))
-
     try:
         result = sdk.preference().create(preference_data)
     except Exception as exc:
@@ -61,8 +51,6 @@ def crear_preferencia_mp(db: Session, negocio: Negocio, plan: Plan) -> dict:
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Error al comunicarse con MercadoPago: {exc}",
         ) from exc
-
-    logger.info("MP DIAG create_response: %s", json.dumps(result, ensure_ascii=False, default=str))
 
     if result.get("status") not in (200, 201):
         raise HTTPException(
@@ -91,14 +79,6 @@ def crear_preferencia_mp(db: Session, negocio: Negocio, plan: Plan) -> dict:
         "sandbox" in init_point,
     )
 
-    logger.info(
-        "MP DIAG preferencia: collector_id=%s preference_id=%s init_point=%s sandbox_init_point=%s",
-        response.get("collector_id"),
-        preference_id,
-        init_point,
-        response.get("sandbox_init_point"),
-    )
-
     fecha_inicio = datetime.now()
     fecha_fin = fecha_inicio + timedelta(days=plan.duracion_dias)
 
@@ -119,44 +99,79 @@ def crear_preferencia_mp(db: Session, negocio: Negocio, plan: Plan) -> dict:
     payload = {
         "init_point": init_point,
         "preference_id": preference_id,
-        "collector_id": response.get("collector_id"),
-        "sandbox_init_point": response.get("sandbox_init_point"),
     }
-    logger.info("MP DIAG return_to_frontend: %s", json.dumps(payload, ensure_ascii=False))
     return payload
 
 
 def procesar_pago_exitoso(db: Session, negocio_id: int, plan_id: int, preference_id: str) -> Suscripcion:
-    suscripcion = (
-        db.query(Suscripcion)
-        .filter(
-            Suscripcion.id_negocio == negocio_id,
-            Suscripcion.external_subscription_id == preference_id,
+    plan = db.query(Plan).filter(Plan.id_plan == plan_id).first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan no encontrado")
+
+    now = datetime.now()
+
+    suscripcion = None
+    if preference_id:
+        suscripcion = (
+            db.query(Suscripcion)
+            .filter(
+                Suscripcion.id_negocio == negocio_id,
+                Suscripcion.external_subscription_id == preference_id,
+            )
+            .first()
         )
-        .first()
-    )
 
     if not suscripcion:
-        plan = db.query(Plan).filter(Plan.id_plan == plan_id).first()
-        if not plan:
-            raise HTTPException(status_code=404, detail="Plan no encontrado")
+        suscripcion = (
+            db.query(Suscripcion)
+            .filter(
+                Suscripcion.id_negocio == negocio_id,
+                Suscripcion.estado == "pendiente",
+            )
+            .order_by(Suscripcion.fecha_inicio.desc())
+            .first()
+        )
 
-        fecha_inicio = datetime.now()
-        fecha_fin = fecha_inicio + timedelta(days=plan.duracion_dias)
+    if suscripcion:
+        db.query(Suscripcion).filter(
+            Suscripcion.id_negocio == negocio_id,
+            Suscripcion.estado == "pendiente",
+            Suscripcion.id_suscripcion != suscripcion.id_suscripcion,
+        ).update({"estado": "cancelada"})
 
+        db.query(Suscripcion).filter(
+            Suscripcion.id_negocio == negocio_id,
+            Suscripcion.estado == "activa",
+            Suscripcion.id_suscripcion != suscripcion.id_suscripcion,
+        ).update({"estado": "cancelada"})
+
+    if not suscripcion:
         suscripcion = Suscripcion(
             id_negocio=negocio_id,
             id_plan=plan_id,
             estado="activa",
-            fecha_inicio=fecha_inicio,
-            fecha_fin=fecha_fin,
+            fecha_inicio=now,
+            fecha_fin=now + timedelta(days=plan.duracion_dias),
             renovacion_automatica=True,
             proveedor_pago="mercadopago",
             external_subscription_id=preference_id,
         )
         db.add(suscripcion)
     else:
-        suscripcion.estado = "activa"
+        if preference_id:
+            suscripcion.external_subscription_id = preference_id
+        if suscripcion.estado == "activa":
+            vigente = suscripcion.fecha_fin and suscripcion.fecha_fin > now
+            base = suscripcion.fecha_fin if vigente else now
+            suscripcion.fecha_inicio = base
+            suscripcion.fecha_fin = base + timedelta(days=plan.duracion_dias)
+        else:
+            suscripcion.estado = "activa"
+            suscripcion.id_plan = plan_id
+            suscripcion.fecha_inicio = now
+            suscripcion.fecha_fin = now + timedelta(days=plan.duracion_dias)
+            suscripcion.renovacion_automatica = True
+            suscripcion.proveedor_pago = "mercadopago"
 
     db.commit()
     db.refresh(suscripcion)
