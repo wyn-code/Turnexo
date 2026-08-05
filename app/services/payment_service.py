@@ -53,17 +53,29 @@ def crear_preferencia_mp(db: Session, negocio: Negocio, plan: Plan) -> dict:
 
     logger.info("MP DIAG preference_data: %s", json.dumps(preference_data, ensure_ascii=False))
 
-    result = sdk.preference().create(preference_data)
+    try:
+        result = sdk.preference().create(preference_data)
+    except Exception as exc:
+        logger.exception("MP ERROR creando preferencia")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Error al comunicarse con MercadoPago: {exc}",
+        ) from exc
 
     logger.info("MP DIAG create_response: %s", json.dumps(result, ensure_ascii=False, default=str))
 
-    if result["status"] not in (200, 201):
+    if result.get("status") not in (200, 201):
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Error al crear la preferencia de pago con MercadoPago",
         )
 
-    response = result["response"]
+    response = result.get("response")
+    if not response or not response.get("id"):
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="MercadoPago no devolvió una preferencia válida",
+        )
     preference_id = response["id"]
     _es_test = str(MERCADOPAGO_ACCESS_TOKEN).startswith("TEST-")
     init_point = (
