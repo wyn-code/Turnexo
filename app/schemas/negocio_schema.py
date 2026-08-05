@@ -63,6 +63,7 @@ class NegocioListResponse(BaseModel):
     id_categoria: int
     categoria: CategoriaResponse | None
     horarios: list[HorarioNegocioResponse] = Field(default_factory=list)
+    tiene_mapa: bool = False
     model_config = ConfigDict(from_attributes=True)
 
 

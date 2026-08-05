@@ -4,17 +4,12 @@ from fastapi.testclient import TestClient
 
 def _auth(client):
     from tests.auth_helpers import obtener_token
-    return obtener_token(client, "test1@test.com", "123456")
+    return obtener_token(client, "test1@test.com", "Test1234567!")
 
 
 def _seed_turnos(db, seed_data):
     from app.models.turnos import Turno
     from app.models.cliente import Cliente
-    from app.models.estado_turno import EstadoTurno
-
-    for eid in [2, 3, 4, 5]:
-        db.add(EstadoTurno(id_estado=eid, nombre_estado=f"Estado{eid}"))
-    db.flush()
 
     cliente = Cliente(
         id_cliente=1,
@@ -207,7 +202,7 @@ def test_unauthorized_access_returns_403(client, seed_data):
 def test_other_user_cannot_access(client, seed_data, db):
     _seed_turnos(db, seed_data)
     from tests.auth_helpers import obtener_token
-    headers = obtener_token(client, "test2@test.com", "123456")
+    headers = obtener_token(client, "test2@test.com", "Test1234567!")
 
     response = client.get(
         f"/api/statistics/business/{seed_data['negocio'].id_negocio}",

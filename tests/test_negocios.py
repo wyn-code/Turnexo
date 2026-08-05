@@ -2,7 +2,7 @@ from tests.auth_helpers import obtener_token
 
 
 def headers_duenio_sin_negocio(client):
-    return obtener_token(client, "test2@test.com", "123456")
+    return obtener_token(client, "test2@test.com", "Test1234567!")
 
 
 def test_listar_negocios_vacio(client):

@@ -1,10 +1,3 @@
-<<<<<<< HEAD
-
-from fastapi.testclient import TestClient
-=======
-import fastapi.testclient
->>>>>>> rocco
-
 # 1. DUEÑO PUEDE EDITAR SU NEGOCIO (Este estaba bien)
 def test_owner_puede_editar_su_negocio(client, seed_data):
     from tests.auth_helpers import obtener_token
@@ -13,7 +6,7 @@ def test_owner_puede_editar_su_negocio(client, seed_data):
     headers = obtener_token(
         client,
         "test1@test.com",
-        "123456"
+        "Test1234567!"
     )
 
     payload = {
@@ -39,7 +32,7 @@ def test_owner_no_puede_editar_negocio_ajeno(client, seed_data):
     headers = obtener_token(
         client,
         "test2@test.com", 
-        "123456"
+        "Test1234567!"
     )
     payload = {
         "nombre": "Negocio Hackeado" 
@@ -60,7 +53,7 @@ def test_owner_no_puede_borrar_negocio_ajeno(client, seed_data):
     headers = obtener_token(
         client,
         "test2@test.com",
-        "123456"
+        "Test1234567!"
     )
     response = client.delete(
         f"/api/negocios/{seed_data['negocio'].id_negocio}",
@@ -77,7 +70,7 @@ def test_owner_no_puede_crear_servicio_en_negocio_ajeno(client, seed_data):
     headers = obtener_token(
         client,
         "test2@test.com",
-        "123456"
+        "Test1234567!"
     )
     payload = {
         "nombre_servicio": "Servicio Test",

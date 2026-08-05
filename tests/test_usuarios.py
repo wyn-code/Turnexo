@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 def test_owner_puede_editar_su_negocio(client, seed_data):
     from tests.auth_helpers import obtener_token
 
-    headers = obtener_token(client, "test1@test.com", "123456")
+    headers = obtener_token(client, "test1@test.com", "Test1234567!")
 
     payload = {
         "nombre": "Negocio Editado",
@@ -28,7 +28,7 @@ def test_owner_puede_editar_su_negocio(client, seed_data):
 def test_owner_no_puede_editar_negocio_ajeno(client, seed_data):
     from tests.auth_helpers import obtener_token
 
-    headers = obtener_token(client, "test2@test.com", "123456") # Usa test2
+    headers = obtener_token(client, "test2@test.com", "Test1234567!") # Usa test2
 
     payload = {
         "nombre": "Negocio Hackeado",
@@ -51,7 +51,7 @@ def test_owner_no_puede_editar_negocio_ajeno(client, seed_data):
 def test_owner_no_puede_borrar_negocio_ajeno(client, seed_data):
     from tests.auth_helpers import obtener_token
 
-    headers = obtener_token(client, "test2@test.com", "123456") # 
+    headers = obtener_token(client, "test2@test.com", "Test1234567!") # 
 
     response = client.delete(
         f"/api/negocios/{seed_data['negocio'].id_negocio}",
@@ -65,7 +65,7 @@ def test_owner_no_puede_borrar_negocio_ajeno(client, seed_data):
 def test_owner_no_puede_crear_servicio_en_negocio_ajeno(client, seed_data):
     from tests.auth_helpers import obtener_token
 
-    headers = obtener_token(client, "test2@test.com", "123456") # 
+    headers = obtener_token(client, "test2@test.com", "Test1234567!") # 
     # <-- NOMBRES DE CAMPOS CORREGIDOS SEGÚN TU MODELO DE SERVICIO
     payload = {
         "nombre_servicio": "Servicio Test", 
@@ -88,7 +88,7 @@ def test_owner_no_puede_crear_servicio_en_negocio_ajeno(client, seed_data):
 # def test_owner_no_puede_acceder_dashboard_privado_ajeno(client, seed_data):
 #     from tests.auth_helpers import obtener_token
 
-#     headers = obtener_token(client, "test2@test.com", "123456") # <-- CORREGIDO A TEST2
+#     headers = obtener_token(client, "test2@test.com", "Test1234567!") # <-- CORREGIDO A TEST2
 
 #     response = client.get(
 #         f"/api/negocios/{seed_data['negocio'].id_negocio}/dashboard",

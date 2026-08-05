@@ -133,6 +133,10 @@ def obtener_negocio_publico_por_id(db: Session, negocio_id: int):
             detail="Negocio no encontrado"
         )
 
+    negocio.tiene_mapa = negocio_tiene_funcion(
+        negocio.id_negocio, "mapa_ubicacion", db
+    )
+
     return negocio
 
 def obtener_negocio_por_usuario(
@@ -168,6 +172,10 @@ def obtener_negocio_por_slug(db: Session, slug: str):
             status_code=404,
             detail="Negocio no encontrado"
         )
+
+    negocio.tiene_mapa = negocio_tiene_funcion(
+        negocio.id_negocio, "mapa_ubicacion", db
+    )
 
     return negocio
 

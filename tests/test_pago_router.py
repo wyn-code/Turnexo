@@ -9,7 +9,7 @@ from tests.auth_helpers import obtener_token
 
 
 def _headers_duenio(client):
-    return obtener_token(client, "test1@test.com", "123456")
+    return obtener_token(client, "test1@test.com", "Test1234567!")
 
 
 def _crear_plan_basico(db) -> Plan:

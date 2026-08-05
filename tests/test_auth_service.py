@@ -92,7 +92,7 @@ def test_register_user_password_invalida(db: auth_service.Session):
     data = RegisterRequest(
         usuario_us="rocco",
         email_us="rocco@test.com",
-        contrasena_us="123456"
+        contrasena_us="abcdefghijk1"
     )
 
     with pytest.raises(HTTPException) as exc:

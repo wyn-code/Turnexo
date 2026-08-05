@@ -11,7 +11,7 @@ class EmpleadoBase(BaseModel):
 
 
 class EmpleadoCreate(EmpleadoBase):
-    pass  # ❌ NO id_negocio
+    id_negocio: int
 
 
 class EmpleadoResponse(EmpleadoBase):

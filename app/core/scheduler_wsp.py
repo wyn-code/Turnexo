@@ -1,43 +1,62 @@
-# from apscheduler.schedulers.background import BackgroundScheduler
-# from datetime import datetime, timedelta
-# from app.core.dependencies import get_db
-# from app.services.whatsapp_service import enviar_whatsapp
-# from app.models.turnos import Turno
+"""
+Scheduler de recordatorios.
 
-# scheduler = BackgroundScheduler()
+Solo envía recordatorios a negocios cuya suscripción activa incluya la
+feature correspondiente (recordatorio_email / recordatorio_whatsapp).
 
-# def verificar_y_enviar_recordatorios():
-#     # Obtenemos una sesión de DB manual ya que estamos fuera del ciclo de FastAPI
-#     db = next(get_db())
-#     try:
-#         # Definimos el rango: turnos que ocurren mañana en esta misma hora
-#         mañana = datetime.now() + timedelta(days=1)
-#         rango_inicio = mañana.replace(minute=0, second=0, microsecond=0)
-#         rango_fin = rango_inicio + timedelta(hours=1)
+NOTA: el job no se registra en main.py todavía. Para activarlo, llamar a
+start_scheduler() en el arranque de la app y conectar el envío real
+(whatsapp_service) en verificar_y_enviar_recordatorios.
+"""
+from datetime import datetime, timedelta
 
-#         # Buscamos turnos en ese rango que no hayan sido notificados aún
-#         turnos_proximos = db.query(Turno).filter(
-#             Turno.fecha_hora >= rango_inicio,
-#             Turno.fecha_hora < rango_fin,
-#             Turno.recordatorio_enviado == False
-#         ).all()
+from app.core.dependencies import get_db
+from app.models.turnos import Turno
+from app.services.plan_service import negocio_tiene_funcion
 
-#         for turno in turnos_proximos:
-#             exito = enviar_whatsapp(
-#                 telefono=turno.cliente_telefono,
-#                 nombre_cliente=turno.cliente_nombre,
-#                 fecha=turno.fecha_hora.strftime("%d/%m/%Y"),
-#                 hora=turno.fecha_hora.strftime("%H:%M")
-#             )
-            
-#             if exito:
-#                 turno.recordatorio_enviado = True
-        
-#         db.commit()
-#     finally:
-#         db.close()
 
-# def start_scheduler():
-#     # Se ejecuta cada hora
-#     scheduler.add_job(verificar_y_enviar_recordatorios, 'interval', hours=1)
-#     scheduler.start()
+def obtener_turnos_para_recordatorio(db, feature_key: str = "recordatorio_email") -> list[Turno]:
+    """Turnos del próximo día-hora que aún no fueron notificados, solo de
+    negocios con la feature de recordatorios activa (VIP)."""
+    manana = datetime.now() + timedelta(days=1)
+    rango_inicio = manana.replace(minute=0, second=0, microsecond=0)
+    rango_fin = rango_inicio + timedelta(hours=1)
+
+    turnos = (
+        db.query(Turno)
+        .filter(
+            Turno.fecha_hora_inicio >= rango_inicio,
+            Turno.fecha_hora_inicio < rango_fin,
+            Turno.recordatorio_enviado == False,  # noqa: E712
+        )
+        .all()
+    )
+
+    return [
+        turno
+        for turno in turnos
+        if negocio_tiene_funcion(turno.id_negocio, feature_key, db)
+    ]
+
+
+def verificar_y_enviar_recordatorios() -> None:
+    """Job periódico: marca como enviado los recordatorios de turnos VIP."""
+    db = next(get_db())
+    try:
+        turnos = obtener_turnos_para_recordatorio(db)
+        for turno in turnos:
+            # TODO: conectar el envío real (whatsapp_service.enviar_whatsapp o
+            # email_service) antes de marcar como enviado.
+            turno.recordatorio_enviado = True
+        db.commit()
+    finally:
+        db.close()
+
+
+def start_scheduler() -> None:
+    """Registra el job periódico (por hora)."""
+    from apscheduler.schedulers.background import BackgroundScheduler
+
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(verificar_y_enviar_recordatorios, "interval", hours=1)
+    scheduler.start()

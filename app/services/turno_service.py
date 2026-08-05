@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 from fastapi import BackgroundTasks, HTTPException
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -17,9 +18,11 @@ from app.models.servicio import Servicio
 from app.models.turnos import Turno
 from app.schemas.appointment_schema import CambiarEstadoTurno, TurnoActualizar, TurnoCrear
 from app.services.email_service import send_booking_confirmation_email, send_cancellation_email
+from app.services.plan_service import negocio_tiene_funcion
 
 
 SOLAPAMIENTO_DETALLE = "El empleado ya tiene un turno en ese horario"
+LIMITE_TURNOS_DIA_FREE = 10
 
 
 def listar_turnos(db: Session):
@@ -189,6 +192,26 @@ def crear_turno(db: Session, turno: TurnoCrear, background_tasks: BackgroundTask
         id_servicio=turno.id_servicio,
         id_negocio=turno.id_negocio,
     )
+
+    if not negocio_tiene_funcion(turno.id_negocio, "turnos_ilimitados", db):
+        fecha_turno = turno.fecha_hora_inicio.date()
+        cantidad = (
+            db.query(Turno)
+            .filter(
+                Turno.id_negocio == turno.id_negocio,
+                func.date(Turno.fecha_hora_inicio) == fecha_turno,
+                Turno.id_estado != CANCELADO,
+            )
+            .count()
+        )
+        if cantidad >= LIMITE_TURNOS_DIA_FREE:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    f"El plan Free permite hasta {LIMITE_TURNOS_DIA_FREE} "
+                    "turnos por día. Actualizá tu plan para agendar más."
+                ),
+            )
 
     fecha_hora_fin = _resolver_fecha_hora_fin(
         db=db,

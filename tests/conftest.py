@@ -92,7 +92,7 @@ def seed_data(db):
         id_us=1,
         usuario_us="testuser1",
         email_us="test1@test.com",
-        contrasena_us=get_password_hash("123456"),
+        contrasena_us=get_password_hash("Test1234567!"),
         email_verified=True,
     )
 
@@ -100,7 +100,7 @@ def seed_data(db):
         id_us=2,
         usuario_us="testuser2",
         email_us="test2@test.com",
-        contrasena_us=get_password_hash("123456"),
+        contrasena_us=get_password_hash("Test1234567!"),
         email_verified=True,
     )
 
@@ -116,12 +116,17 @@ def seed_data(db):
     db.add(estado_pendiente)
     db.flush()
 
+    for eid, nombre in [(2, "Confirmado"), (3, "Completado"),
+                        (4, "Cancelado"), (5, "No asistio")]:
+        db.add(EstadoTurno(id_estado=eid, nombre_estado=nombre))
+    db.flush()
+
     negocio = Negocio(
         id_negocio=1,
         usuario_id=1,
         nombre="Test Negocio",
         id_categoria = 1,
-        wsp="123456789",
+        wsp="Test1234567!789",
         direccion="Test 123",
         ciudad="San Nicolas",
         activo=True,
@@ -148,7 +153,7 @@ def seed_data(db):
         id_negocio=1,
         nombre="Juan",
         apellido="Perez",
-        telefono="123456789",
+        telefono="Test1234567!789",
         activo=True,
     )
     db.add(empleado)
