@@ -62,7 +62,11 @@ def obtener_negocios_mapa(db: Session):
     )
 
 def listar_negocios(db: Session):
-    return db.query(Negocio).filter(
+    return db.query(Negocio).options(
+        joinedload(Negocio.categoria),
+        joinedload(Negocio.localidad),
+        joinedload(Negocio.provincia),
+    ).filter(
         Negocio.activo == True
     ).all()
 
@@ -99,7 +103,9 @@ def listar_negocios_admin(db: Session):
 
 def obtener_negocio_por_id(db: Session, negocio_id: int):
     negocio = db.query(Negocio).options(
-        joinedload(Negocio.categoria)
+        joinedload(Negocio.categoria),
+        joinedload(Negocio.localidad),
+        joinedload(Negocio.provincia),
     ).filter(
         Negocio.id_negocio == negocio_id
     ).first()
@@ -118,6 +124,8 @@ def obtener_negocio_publico_por_id(db: Session, negocio_id: int):
         db.query(Negocio)
         .options(
             joinedload(Negocio.categoria),
+            joinedload(Negocio.localidad),
+            joinedload(Negocio.provincia),
             selectinload(Negocio.horarios),
             selectinload(Negocio.imagenes),
         )
@@ -145,6 +153,11 @@ def obtener_negocio_por_usuario(
 ):
     negocio = (
         db.query(Negocio)
+        .options(
+            joinedload(Negocio.categoria),
+            joinedload(Negocio.localidad),
+            joinedload(Negocio.provincia),
+        )
         .filter(Negocio.usuario_id == usuario_id)
         .first()
     )
@@ -161,6 +174,8 @@ def obtener_negocio_por_usuario(
 def obtener_negocio_por_slug(db: Session, slug: str):
     negocio = db.query(Negocio).options(
         joinedload(Negocio.categoria),
+        joinedload(Negocio.localidad),
+        joinedload(Negocio.provincia),
         selectinload(Negocio.horarios),
         selectinload(Negocio.imagenes),
     ).filter(
@@ -234,6 +249,15 @@ def crear_negocio_completo(db: Session, data: NegocioCompleteCreate):
         ).first()
         if not provincia:
             raise HTTPException(400, f"Provincia no válida: {data.id_provincia}")
+
+    if data.id_localidad and not data.id_provincia:
+        raise HTTPException(400, "id_provincia es obligatorio al seleccionar una localidad")
+
+    if localidad and provincia and localidad.id_provincia != provincia.id_provincia:
+        raise HTTPException(
+            400,
+            "La localidad no pertenece a la provincia seleccionada",
+        )
 
     # 🔥 GEOCODING MEJORADO
     latitud, longitud = None, None
@@ -349,10 +373,63 @@ def actualizar_negocio(db: Session, negocio_id: int, data, current_user: Usuario
 
     old_direccion = negocio.direccion
     old_ciudad = negocio.ciudad
+    old_id_localidad = negocio.id_localidad
+    old_id_provincia = negocio.id_provincia
+
+    if (
+        update_data.get("id_localidad") is not None or
+        update_data.get("id_provincia") is not None
+    ):
+        id_localidad = update_data.get("id_localidad", negocio.id_localidad)
+        id_provincia = update_data.get("id_provincia", negocio.id_provincia)
+
+        if id_localidad is not None and id_provincia is None:
+            raise HTTPException(
+                400,
+                "id_provincia es obligatorio al seleccionar una localidad",
+            )
+
+        if id_localidad is not None:
+            localidad = db.query(Localidad).filter(
+                Localidad.id_localidad == id_localidad
+            ).first()
+            if not localidad:
+                raise HTTPException(400, f"Localidad no válida: {id_localidad}")
+            if id_provincia is not None and localidad.id_provincia != id_provincia:
+                raise HTTPException(
+                    400,
+                    "La localidad no pertenece a la provincia seleccionada",
+                )
+
+        if id_provincia is not None:
+            provincia = db.query(Provincia).filter(
+                Provincia.id_provincia == id_provincia
+            ).first()
+            if not provincia:
+                raise HTTPException(400, f"Provincia no válida: {id_provincia}")
 
     for k, v in update_data.items():
         if k in ALLOWED_FIELDS:
             setattr(negocio, k, v)
+
+    if negocio.id_localidad is not None:
+        localidad = db.query(Localidad).filter(
+            Localidad.id_localidad == negocio.id_localidad
+        ).first()
+        if localidad:
+            negocio.ciudad = localidad.nombre
+            negocio.localidad = localidad
+    else:
+        negocio.localidad = None
+
+    if negocio.id_provincia is not None:
+        provincia = db.query(Provincia).filter(
+            Provincia.id_provincia == negocio.id_provincia
+        ).first()
+        if provincia:
+            negocio.provincia = provincia
+    else:
+        negocio.provincia = None
 
     if imagenes is not None:
         # ── NUEVO: solo negocios VIP pueden subir imágenes personalizadas ──
@@ -374,7 +451,9 @@ def actualizar_negocio(db: Session, negocio_id: int, data, current_user: Usuario
 
     if (
         negocio.direccion != old_direccion or
-        negocio.ciudad != old_ciudad
+        negocio.ciudad != old_ciudad or
+        negocio.id_localidad != old_id_localidad or
+        negocio.id_provincia != old_id_provincia
     ):
         localidad = db.query(Localidad).filter(
             Localidad.id_localidad == negocio.id_localidad

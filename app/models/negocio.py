@@ -34,6 +34,16 @@ class Negocio(Base):
         "Categoria",
         back_populates="negocios",
     )
+    localidad = relationship("Localidad", foreign_keys=[id_localidad])
+    provincia = relationship("Provincia", foreign_keys=[id_provincia])
+
+    @property
+    def localidad_nombre(self):
+        return self.localidad.nombre if self.localidad else None
+
+    @property
+    def provincia_nombre(self):
+        return self.provincia.nombre if self.provincia else None
     turnos = relationship(
         "Turno",
         back_populates="negocio",

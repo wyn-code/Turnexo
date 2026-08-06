@@ -53,6 +53,10 @@ class NegocioListResponse(BaseModel):
     telefono: str | None = None
     direccion: str
     ciudad: str
+    id_localidad: int | None = None
+    id_provincia: int | None = None
+    localidad_nombre: str | None = None
+    provincia_nombre: str | None = None
     latitud: float | None
     longitud: float | None
     slug: str
