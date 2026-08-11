@@ -336,6 +336,41 @@ def send_two_factor_email(
         print(e)
         raise
 
+def send_account_linked_email(
+    email: str,
+):
+    params = {
+        "from": FROM_ADDRESS,
+        "to": [email],
+        "subject": "Vinculaste tu cuenta con Google",
+        "html": f"""
+        <div style="font-family: Arial, sans-serif; max-width:600px; margin:auto;">
+            <h2>Cuenta vinculada con Google</h2>
+
+            <p>
+                Tu cuenta de TurnoGo ahora está vinculada con tu cuenta
+                de Google.
+            </p>
+
+            <p>
+                A partir de ahora podés iniciar sesión con tu email y
+                contraseña, o directamente con Google. Tus datos y turnos
+                son los mismos en ambos métodos.
+            </p>
+
+            <hr>
+
+            <p style="font-size:12px;color:#888;">
+                Si no fuiste vos quien inició sesión con Google,
+                comunicate con el equipo de TurnoGo.
+            </p>
+        </div>
+        """,
+    }
+
+    return resend.Emails.send(params)
+
+
 def send_otp_email(
     email: str,
     code: str,

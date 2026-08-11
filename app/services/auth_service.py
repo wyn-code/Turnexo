@@ -11,6 +11,7 @@ def _utcnow():
 from app.services.email_service import (
     send_verification_email,
     send_reset_password_email,
+    send_account_linked_email,
 )
 from fastapi import HTTPException, status
 from sqlalchemy import or_
@@ -34,6 +35,7 @@ from app.schemas.auth_schema import (
     LoginRequest,
     RegisterRequest,
     TokenResponse,
+    GoogleLoginResponse,
 )
 
 
@@ -118,6 +120,16 @@ def login_user(db: Session, data: LoginRequest) -> tuple[Usuario, TokenResponse]
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales invalidas",
+        )
+
+    if not usuario.contrasena_us:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=(
+                "Esta cuenta no tiene contraseña configurada, "
+                "iniciá sesión con Google o agregá una contraseña "
+                "desde tu perfil"
+            ),
         )
 
     if not verify_password(
@@ -258,9 +270,12 @@ def reset_password(
             ),
         )
 
-    if verify_password(
-        new_password,
-        usuario.contrasena_us,
+    if (
+        usuario.contrasena_us
+        and verify_password(
+            new_password,
+            usuario.contrasena_us,
+        )
     ):
         raise HTTPException(
             status_code=400,
@@ -351,6 +366,16 @@ def verify_credentials(
         raise HTTPException(
             status_code=401,
             detail="Credenciales inválidas",
+        )
+
+    if not usuario.contrasena_us:
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "Esta cuenta no tiene contraseña configurada, "
+                "iniciá sesión con Google o agregá una contraseña "
+                "desde tu perfil"
+            ),
         )
 
     if not verify_password(
@@ -520,15 +545,10 @@ def resend_otp_code(
 def login_with_google(
     db: Session,
     id_token: str,
-) -> tuple[Usuario, TokenResponse]:
+) -> tuple[Usuario, GoogleLoginResponse]:
     from google.oauth2 import id_token as google_id_token
     from google.auth.transport import requests as google_requests
     from google.auth.exceptions import GoogleAuthError
-
-    print("=" * 60)
-    print("GOOGLE_CLIENT_ID:", GOOGLE_CLIENT_ID)
-    print("TOKEN (primeros 40):", id_token[:40])
-    print("=" * 60)
 
     try:
         payload = google_id_token.verify_oauth2_token(
@@ -536,29 +556,56 @@ def login_with_google(
             google_requests.Request(),
             GOOGLE_CLIENT_ID,
         )
-
-        print("GOOGLE PAYLOAD:", payload)
-
     except GoogleAuthError as e:
-        print("GOOGLE AUTH ERROR:", repr(e))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+        )
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),
         )
 
-    except Exception as e:
-        print("GENERAL ERROR:", repr(e))
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
-        )
+    google_id = payload.get("sub")
     email = payload.get("email")
-    name = payload.get("name", "")
+    email_verified = payload.get("email_verified")
+
+    if not google_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se pudo obtener el identificador de Google",
+        )
 
     if not email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No se pudo obtener el email de Google",
+        )
+
+    if not email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="El email de Google no está verificado",
+        )
+
+    def _issue_token(usuario: Usuario) -> str:
+        return create_access_token(
+            subject=usuario.id_us,
+            expires_delta=timedelta(
+                minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+            ),
+        )
+
+    usuario = (
+        db.query(Usuario)
+        .filter(Usuario.google_id == google_id)
+        .first()
+    )
+
+    if usuario:
+        return usuario, GoogleLoginResponse(
+            access_token=_issue_token(usuario)
         )
 
     usuario = (
@@ -568,24 +615,48 @@ def login_with_google(
     )
 
     if usuario:
-        if usuario.auth_provider != "google":
+        if usuario.google_id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
-                    "Este email ya está registrado con contraseña. "
-                    "Iniciá sesión con email y contraseña."
+                    "Esta cuenta ya está vinculada a otra cuenta "
+                    "de Google. Iniciá sesión con esa cuenta o con "
+                    "email y contraseña."
                 ),
             )
 
-        token = create_access_token(
-            subject=usuario.id_us,
-            expires_delta=timedelta(
-                minutes=ACCESS_TOKEN_EXPIRE_MINUTES
-            ),
-        )
+        if not usuario.contrasena_us:
+            usuario.email_verified = True
+            usuario.google_id = google_id
+            db.commit()
+            db.refresh(usuario)
+            return usuario, GoogleLoginResponse(
+                access_token=_issue_token(usuario),
+                account_linked=True,
+            )
 
-        return usuario, TokenResponse(
-            access_token=token,
+        if not usuario.email_verified:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Existe una cuenta con este email que todavía "
+                    "no verificó su email. Verificá tu email antes "
+                    "de vincular tu cuenta de Google."
+                ),
+            )
+
+        usuario.google_id = google_id
+        db.commit()
+        db.refresh(usuario)
+
+        try:
+            send_account_linked_email(usuario.email_us)
+        except Exception:
+            pass
+
+        return usuario, GoogleLoginResponse(
+            access_token=_issue_token(usuario),
+            account_linked=True,
         )
 
     username_base = email.split("@")[0]
@@ -599,27 +670,74 @@ def login_with_google(
         username = f"{username_base}{counter}"
         counter += 1
 
-    verification_token = secrets.token_urlsafe(32)
-
     usuario = Usuario(
         usuario_us=username,
         email_us=email,
         contrasena_us=None,
-        email_verified=False,
+        email_verified=True,
         auth_provider="google",
-        verification_token=verification_token,
-        verification_token_expiration=(
-            _utcnow() + timedelta(hours=24)
-        ),
+        google_id=google_id,
     )
 
     db.add(usuario)
     db.commit()
     db.refresh(usuario)
 
-    send_verification_email(
-        usuario.email_us,
-        verification_token,
+    return usuario, GoogleLoginResponse(
+        access_token=_issue_token(usuario),
+        account_created=True,
     )
 
-    return usuario, None
+
+def set_password(
+    db: Session,
+    current_user: Usuario,
+    new_password: str,
+    current_password: str | None = None,
+) -> dict:
+    if not re.match(PASSWORD_REGEX, new_password):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "La contraseña debe tener entre 12 y 16 caracteres, "
+                "incluyendo mayúscula, minúscula, número "
+                "y un carácter especial"
+            ),
+        )
+
+    if current_user.contrasena_us:
+        if not current_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Debés ingresar tu contraseña actual",
+            )
+
+        if not verify_password(
+            current_password,
+            current_user.contrasena_us,
+        ):
+            raise HTTPException(
+                status_code=401,
+                detail="La contraseña actual es incorrecta",
+            )
+
+        if verify_password(
+            new_password,
+            current_user.contrasena_us,
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "La nueva contraseña no puede ser "
+                    "igual a la anterior"
+                ),
+            )
+
+    current_user.contrasena_us = get_password_hash(new_password)
+    current_user.auth_provider = "local"
+    db.commit()
+    db.refresh(current_user)
+
+    return {
+        "message": "Contraseña configurada correctamente"
+    }

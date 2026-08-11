@@ -119,6 +119,13 @@ class Usuario(Base):
         nullable=False,
     )
 
+    google_id = Column(
+        String(255),
+        nullable=True,
+        unique=True,
+        index=True,
+    )
+
     negocios = relationship(
         "Negocio",
         back_populates="usuario",

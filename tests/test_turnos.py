@@ -1,3 +1,7 @@
+
+from fastapi.testclient import TestClient
+
+
 # 1. DUEÑO PUEDE EDITAR SU NEGOCIO (Este estaba bien)
 def test_owner_puede_editar_su_negocio(client, seed_data):
     from tests.auth_helpers import obtener_token

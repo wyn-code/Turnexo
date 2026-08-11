@@ -96,6 +96,32 @@ class GoogleLoginRequest(BaseModel):
     id_token: str
 
 
+class GoogleLoginResponse(TokenResponse):
+    account_created: bool = False
+    account_linked: bool = False
+
+
+# =====================================
+# SET PASSWORD
+# =====================================
+
+class SetPasswordRequest(BaseModel):
+    current_password: str | None = Field(
+        default=None,
+        max_length=16,
+    )
+
+    new_password: str = Field(
+        min_length=12,
+        max_length=16,
+    )
+
+    confirm_password: str = Field(
+        min_length=12,
+        max_length=16,
+    )
+
+
 # =====================================
 # FORGOT PASSWORD
 # =====================================

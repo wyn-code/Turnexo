@@ -11,15 +11,18 @@ from app.services.auth_service import (
     verify_2fa,
     resend_otp_code,
     login_with_google,
+    set_password,
 )
 from app.schemas.auth_schema import (
     AuthResponse,
     ForgotPasswordRequest,
     GoogleLoginRequest,
+    GoogleLoginResponse,
     LoginRequest,
     RegisterRequest,
     ResetPasswordRequest,
     ResendCodeRequest,
+    SetPasswordRequest,
     Verify2FARequest,
     TokenResponse,
 )
@@ -53,21 +56,32 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     _, token = login_user(db, payload)
     return token
 
-@router.post("/google")
+@router.post("/google", response_model=GoogleLoginResponse)
 def google_login(
     payload: GoogleLoginRequest,
     db: Session = Depends(get_db),
 ):
-    usuario, token = login_with_google(db, payload.id_token)
-
-    if token is None:
-        return {
-            "message":
-                "Cuenta creada. Revisá tu email para verificarla.",
-            "email": usuario.email_us,
-        }
-
+    _, token = login_with_google(db, payload.id_token)
     return token
+
+@router.post("/set-password")
+def set_password_endpoint(
+    payload: SetPasswordRequest,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if payload.new_password != payload.confirm_password:
+        raise HTTPException(
+            status_code=400,
+            detail="Las contraseñas no coinciden",
+        )
+
+    return set_password(
+        db,
+        current_user,
+        payload.new_password,
+        payload.current_password,
+    )
 
 @router.get("/me")
 def me(

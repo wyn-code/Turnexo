@@ -783,3 +783,438 @@ def test_forgot_reset_login_flow_endpoint(client, db, monkeypatch):
 
     assert login_response.status_code == 200
     assert "access_token" in login_response.json()
+
+
+# ---------------- GOOGLE ACCOUNT LINKING ----------------
+
+GOOGLE_PAYLOAD = {
+    "sub": "google-sub-1",
+    "email": "rocco@test.com",
+    "email_verified": True,
+}
+
+
+def _mock_google_token(payload):
+    return patch(
+        "google.oauth2.id_token.verify_oauth2_token",
+        return_value=payload,
+    )
+
+
+def test_google_login_auto_link_cuenta_local_verificada(db):
+    password = "Password123!"
+    usuario = Usuario(
+        usuario_us="rocco",
+        email_us="rocco@test.com",
+        contrasena_us=get_password_hash(password),
+        email_verified=True,
+    )
+    db.add(usuario)
+    db.commit()
+
+    with _mock_google_token(GOOGLE_PAYLOAD):
+        user, token = auth_service.login_with_google(db, "fake-id-token")
+
+    assert user.id_us == usuario.id_us
+    assert user.google_id == "google-sub-1"
+    assert token.account_linked is True
+    assert token.account_created is False
+    assert token.access_token
+
+    total = db.query(Usuario).filter(
+        Usuario.email_us == "rocco@test.com"
+    ).count()
+    assert total == 1
+
+    db.refresh(usuario)
+    assert usuario.google_id == "google-sub-1"
+    assert usuario.contrasena_us is not None
+
+
+def test_google_login_no_auto_link_cuenta_local_no_verificada(db):
+    usuario = Usuario(
+        usuario_us="rocco",
+        email_us="rocco@test.com",
+        contrasena_us=get_password_hash("Password123!"),
+        email_verified=False,
+    )
+    db.add(usuario)
+    db.commit()
+
+    with _mock_google_token(GOOGLE_PAYLOAD):
+        with pytest.raises(HTTPException) as exc:
+            auth_service.login_with_google(db, "fake-id-token")
+
+    assert exc.value.status_code == 409
+    db.refresh(usuario)
+    assert usuario.google_id is None
+
+
+def test_google_login_cuenta_google_vieja_sin_password_backfill(db):
+    usuario = Usuario(
+        usuario_us="rocco",
+        email_us="rocco@test.com",
+        contrasena_us=None,
+        email_verified=False,
+        auth_provider="google",
+    )
+    db.add(usuario)
+    db.commit()
+
+    with _mock_google_token(GOOGLE_PAYLOAD):
+        user, token = auth_service.login_with_google(db, "fake-id-token")
+
+    assert user.id_us == usuario.id_us
+    assert user.google_id == "google-sub-1"
+    assert user.email_verified is True
+    assert token.account_linked is True
+    assert token.access_token
+
+
+def test_google_login_crea_cuenta_nueva(db):
+    with _mock_google_token(GOOGLE_PAYLOAD):
+        user, token = auth_service.login_with_google(db, "fake-id-token")
+
+    assert user.email_us == "rocco@test.com"
+    assert user.usuario_us == "rocco"
+    assert user.google_id == "google-sub-1"
+    assert user.email_verified is True
+    assert user.contrasena_us is None
+    assert user.auth_provider == "google"
+    assert token.account_created is True
+    assert token.account_linked is False
+    assert token.access_token
+
+
+def test_google_login_por_google_id_directo(db):
+    usuario = Usuario(
+        usuario_us="rocco",
+        email_us="rocco@test.com",
+        contrasena_us=None,
+        email_verified=True,
+        auth_provider="google",
+        google_id="google-sub-1",
+    )
+    db.add(usuario)
+    db.commit()
+
+    payload = dict(GOOGLE_PAYLOAD)
+    payload["email"] = "otro-email@test.com"
+
+    with _mock_google_token(payload):
+        user, token = auth_service.login_with_google(db, "fake-id-token")
+
+    assert user.id_us == usuario.id_us
+    assert token.account_created is False
+    assert token.account_linked is False
+    assert token.access_token
+
+
+def test_google_login_email_no_verificado_por_google(db):
+    payload = dict(GOOGLE_PAYLOAD)
+    payload["email_verified"] = False
+
+    with _mock_google_token(payload):
+        with pytest.raises(HTTPException) as exc:
+            auth_service.login_with_google(db, "fake-id-token")
+
+    assert exc.value.status_code == 401
+    assert db.query(Usuario).count() == 0
+
+
+def test_google_login_cuenta_ya_vinculada_a_otro_google(db):
+    usuario = Usuario(
+        usuario_us="rocco",
+        email_us="rocco@test.com",
+        contrasena_us=get_password_hash("Password123!"),
+        email_verified=True,
+        google_id="google-sub-otro",
+    )
+    db.add(usuario)
+    db.commit()
+
+    with _mock_google_token(GOOGLE_PAYLOAD):
+        with pytest.raises(HTTPException) as exc:
+            auth_service.login_with_google(db, "fake-id-token")
+
+    assert exc.value.status_code == 409
+
+
+def test_google_login_endpoint_ok(client, db):
+    password = "Password123!"
+    usuario = Usuario(
+        usuario_us="rocco",
+        email_us="rocco@test.com",
+        contrasena_us=get_password_hash(password),
+        email_verified=True,
+    )
+    db.add(usuario)
+    db.commit()
+
+    with _mock_google_token(GOOGLE_PAYLOAD):
+        response = client.post(
+            "/api/auth/google",
+            json={"id_token": "fake-id-token"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["access_token"]
+    assert body["account_linked"] is True
+    assert body["account_created"] is False
+
+
+# ---------------- LOGIN LOCAL SIN CONTRASEÑA ----------------
+
+def test_login_local_sin_password(db):
+    usuario = Usuario(
+        usuario_us="rocco",
+        email_us="rocco@test.com",
+        contrasena_us=None,
+        email_verified=True,
+        auth_provider="google",
+    )
+    db.add(usuario)
+    db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        auth_service.login_user(
+            db,
+            LoginRequest(
+                email_us="rocco@test.com",
+                contrasena_us="Password123!",
+            ),
+        )
+
+    assert exc.value.status_code == 401
+    assert "no tiene contraseña" in exc.value.detail
+
+
+def test_verify_credentials_sin_password(db):
+    usuario = Usuario(
+        usuario_us="rocco",
+        email_us="rocco@test.com",
+        contrasena_us=None,
+        email_verified=True,
+        auth_provider="google",
+    )
+    db.add(usuario)
+    db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        auth_service.verify_credentials(
+            db,
+            LoginRequest(
+                email_us="rocco@test.com",
+                contrasena_us="Password123!",
+            ),
+        )
+
+    assert exc.value.status_code == 401
+    assert "no tiene contraseña" in exc.value.detail
+
+
+# ---------------- SET PASSWORD ----------------
+
+def test_set_password_cuenta_sin_password(db):
+    usuario = Usuario(
+        usuario_us="rocco",
+        email_us="rocco@test.com",
+        contrasena_us=None,
+        email_verified=True,
+        auth_provider="google",
+    )
+    db.add(usuario)
+    db.commit()
+
+    response = auth_service.set_password(
+        db,
+        usuario,
+        "NuevaPass123!",
+    )
+
+    assert response == {
+        "message": "Contraseña configurada correctamente"
+    }
+
+    db.refresh(usuario)
+    assert usuario.contrasena_us is not None
+    assert verify_password("NuevaPass123!", usuario.contrasena_us)
+
+    _, token = auth_service.login_user(
+        db,
+        LoginRequest(
+            email_us="rocco@test.com",
+            contrasena_us="NuevaPass123!",
+        ),
+    )
+    assert token.access_token
+
+
+def test_set_password_requiere_contraseña_actual(db):
+    usuario = Usuario(
+        usuario_us="rocco",
+        email_us="rocco@test.com",
+        contrasena_us=get_password_hash("OldPass123!"),
+        email_verified=True,
+    )
+    db.add(usuario)
+    db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        auth_service.set_password(
+            db,
+            usuario,
+            "NuevaPass123!",
+        )
+    assert exc.value.status_code == 400
+    assert exc.value.detail == "Debés ingresar tu contraseña actual"
+
+    with pytest.raises(HTTPException) as exc:
+        auth_service.set_password(
+            db,
+            usuario,
+            "NuevaPass123!",
+            "WrongPass123!",
+        )
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "La contraseña actual es incorrecta"
+
+
+def test_set_password_cambia_contraseña_existente(db):
+    usuario = Usuario(
+        usuario_us="rocco",
+        email_us="rocco@test.com",
+        contrasena_us=get_password_hash("OldPass123!"),
+        email_verified=True,
+    )
+    db.add(usuario)
+    db.commit()
+
+    auth_service.set_password(
+        db,
+        usuario,
+        "NuevaPass123!",
+        "OldPass123!",
+    )
+
+    db.refresh(usuario)
+    assert verify_password("NuevaPass123!", usuario.contrasena_us)
+    assert not verify_password("OldPass123!", usuario.contrasena_us)
+
+
+def test_set_password_rechaza_igual_a_anterior(db):
+    usuario = Usuario(
+        usuario_us="rocco",
+        email_us="rocco@test.com",
+        contrasena_us=get_password_hash("OldPass1234!"),
+        email_verified=True,
+    )
+    db.add(usuario)
+    db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        auth_service.set_password(
+            db,
+            usuario,
+            "OldPass1234!",
+            "OldPass1234!",
+        )
+
+    assert exc.value.status_code == 400
+    assert exc.value.detail == (
+        "La nueva contraseña no puede ser "
+        "igual a la anterior"
+    )
+
+
+def test_set_password_endpoint_sin_password(client, db):
+    from app.core.security import create_access_token
+    from datetime import timedelta
+
+    usuario = Usuario(
+        usuario_us="rocco",
+        email_us="rocco@test.com",
+        contrasena_us=None,
+        email_verified=True,
+        auth_provider="google",
+    )
+    db.add(usuario)
+    db.commit()
+
+    token = create_access_token(
+        subject=usuario.id_us,
+        expires_delta=timedelta(minutes=30),
+    )
+
+    response = client.post(
+        "/api/auth/set-password",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "new_password": "NuevaPass123!",
+            "confirm_password": "NuevaPass123!",
+        },
+    )
+
+    assert response.status_code == 200
+    db.refresh(usuario)
+    assert verify_password("NuevaPass123!", usuario.contrasena_us)
+
+
+def test_set_password_endpoint_con_contraseña_existente(client, db):
+    from app.core.security import create_access_token
+    from datetime import timedelta
+
+    usuario = Usuario(
+        usuario_us="rocco",
+        email_us="rocco@test.com",
+        contrasena_us=get_password_hash("OldPass123!"),
+        email_verified=True,
+    )
+    db.add(usuario)
+    db.commit()
+
+    token = create_access_token(
+        subject=usuario.id_us,
+        expires_delta=timedelta(minutes=30),
+    )
+
+    response = client.post(
+        "/api/auth/set-password",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "current_password": "WrongPass123!",
+            "new_password": "NuevaPass123!",
+            "confirm_password": "NuevaPass123!",
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "La contraseña actual es incorrecta"
+
+    response = client.post(
+        "/api/auth/set-password",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "current_password": "OldPass123!",
+            "new_password": "NuevaPass123!",
+            "confirm_password": "NuevaPass123!",
+        },
+    )
+
+    assert response.status_code == 200
+    db.refresh(usuario)
+    assert verify_password("NuevaPass123!", usuario.contrasena_us)
+
+
+def test_set_password_endpoint_requiere_auth(client, db):
+    response = client.post(
+        "/api/auth/set-password",
+        json={
+            "new_password": "NuevaPass123!",
+            "confirm_password": "NuevaPass123!",
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
