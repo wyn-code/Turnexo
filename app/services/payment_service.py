@@ -189,6 +189,102 @@ def obtener_suscripcion_actual(db: Session, negocio_id: int) -> Suscripcion | No
     )
 
 
+def procesar_subscripcion_mp(
+    db: Session, subscription_id: str
+) -> Suscripcion | None:
+    try:
+        result = sdk.subscription().get(subscription_id)
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        logger.exception(
+            "MP ERROR obteniendo suscripción %s: %s", subscription_id, exc
+        )
+        return None
+
+    if result.get("status") != 200:
+        logger.warning(
+            "MP suscripción %s: status HTTP %s",
+            subscription_id,
+            result.get("status"),
+        )
+        return None
+
+    sub = result.get("response") or {}
+    if sub.get("status") != "authorized":
+        logger.info(
+            "MP suscripción %s: estado '%s' (no autorizada, se ignora)",
+            subscription_id,
+            sub.get("status"),
+        )
+        return None
+
+    now = datetime.now()
+
+    suscripcion = (
+        db.query(Suscripcion)
+        .filter(Suscripcion.external_subscription_id == subscription_id)
+        .order_by(Suscripcion.fecha_inicio.desc())
+        .first()
+    )
+
+    plan = None
+    if suscripcion:
+        plan = (
+            db.query(Plan).filter(Plan.id_plan == suscripcion.id_plan).first()
+        )
+
+    if not suscripcion:
+        external_ref = sub.get("external_reference", "")
+        if ":" in external_ref:
+            try:
+                negocio_id = int(external_ref.split(":", 1)[0])
+                plan_id = int(external_ref.split(":", 1)[1])
+            except ValueError:
+                negocio_id = None
+                plan_id = None
+        else:
+            negocio_id = None
+            plan_id = None
+
+        if negocio_id and plan_id:
+            plan = db.query(Plan).filter(Plan.id_plan == plan_id).first()
+            if plan:
+                suscripcion = (
+                    db.query(Suscripcion)
+                    .filter(
+                        Suscripcion.id_negocio == negocio_id,
+                        Suscripcion.estado.in_(("activa", "pendiente")),
+                    )
+                    .order_by(Suscripcion.fecha_inicio.desc())
+                    .first()
+                )
+
+    if not suscripcion or not plan:
+        logger.warning(
+            "MP suscripción %s: no se encontró suscripción local asociada",
+            subscription_id,
+        )
+        return None
+
+    suscripcion.estado = "activa"
+    vigente = suscripcion.fecha_fin and suscripcion.fecha_fin > now
+    base = suscripcion.fecha_fin if vigente else now
+    suscripcion.fecha_inicio = base
+    suscripcion.fecha_fin = base + timedelta(days=plan.duracion_dias)
+    suscripcion.renovacion_automatica = True
+    suscripcion.proveedor_pago = "mercadopago"
+    suscripcion.external_subscription_id = subscription_id
+    db.commit()
+    db.refresh(suscripcion)
+
+    logger.info(
+        "Suscripción renovada por webhook MP: negocio=%s plan=%s fecha_fin=%s",
+        suscripcion.id_negocio,
+        suscripcion.id_plan,
+        suscripcion.fecha_fin,
+    )
+    return suscripcion
+
+
 def cancelar_suscripcion(db: Session, id_suscripcion: int, negocio_id: int) -> Suscripcion:
     suscripcion = (
         db.query(Suscripcion)

@@ -14,6 +14,10 @@ class EmpleadoCreate(EmpleadoBase):
     id_negocio: int
 
 
+class EmpleadoCreateNested(EmpleadoBase):
+    pass
+
+
 class EmpleadoResponse(EmpleadoBase):
     id_empleado: int
     id_negocio: int

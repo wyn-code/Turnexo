@@ -10,6 +10,7 @@ from app.schemas.servicio_schema import (
 
 from app.schemas.empleado_schema import (
     EmpleadoCreate,
+    EmpleadoCreateNested,
     EmpleadoResponse
 )
 
@@ -78,7 +79,7 @@ class NegocioResponse(NegocioListResponse):
 class NegocioCompleteCreate(NegocioCreate):
     imagenes: list[str] = Field(default_factory=list)
     servicios: list[ServicioCreateNested] = Field(default_factory=list)
-    empleados: list[EmpleadoCreate] = Field(default_factory=list)
+    empleados: list[EmpleadoCreateNested] = Field(default_factory=list)
     horarios: list[HorarioNegocioCreate] = Field(default_factory=list)
 
 

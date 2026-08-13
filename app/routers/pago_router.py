@@ -62,6 +62,16 @@ async def webhook_mercadopago(request: Request, db: Session = Depends(get_db)):
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logger.exception("MP webhook: error procesando payment_id=%s: %s", payment_id, exc)
 
+    elif topic == "subscription" and payment_id:
+        try:
+            payment_service.procesar_subscripcion_mp(db, str(payment_id))
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.exception(
+                "MP webhook: error procesando subscription_id=%s: %s",
+                payment_id,
+                exc,
+            )
+
     return {"status": "ok"}
 
 
