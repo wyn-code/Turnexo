@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_current_user, get_db
+from app.core.dependencies import get_current_user, get_db, require_role
 from app.models.usuario import Usuario
 from app.schemas.negocio_schema import (
     NegocioResponse,
@@ -17,7 +17,10 @@ router = APIRouter(prefix="/negocios", tags=["Negocios"])
 
 
 @router.post("/admin/rebuild-data")
-def rebuild(db: Session = Depends(get_db)):
+def rebuild(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_role("admin")),
+):
     return negocio_service.backfill_negocios(db)
 
 
@@ -32,7 +35,10 @@ def ver_negocios(db: Session = Depends(get_db)):
 
 
 @router.get("/admin", response_model=list[NegocioAdminResponse])
-def ver_negocios_admin(db: Session = Depends(get_db)):
+def ver_negocios_admin(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_role("admin")),
+):
     return negocio_service.listar_negocios_admin(db)
 
 @router.get("/me", response_model=NegocioResponse)
@@ -116,7 +122,8 @@ def delete_negocio(
 
 @router.post("/backfill-coordenadas")
 def ejecutar_backfill(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_role("admin")),
 ):
     negocio_service.backfill_negocios(db)
 

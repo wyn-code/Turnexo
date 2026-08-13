@@ -109,6 +109,12 @@ class Usuario(Base):
         nullable=True,
     )
 
+    otp_attempts = Column(
+        Integer,
+        default=0,
+        nullable=False,
+    )
+
     # ==========================
     # AUTH PROVIDER
     # ==========================

@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
+from app.core.rate_limit import limiter
 from app.db.database import engine
 from app.routers.auth_router import router as auth_router
 from app.routers.categoria_router import router as categoria_router
@@ -18,6 +21,12 @@ from app.routers.estadistica import router as estadistica
 
 def create_app():
     app = FastAPI(title="Turnogo")
+
+    app.state.limiter = limiter
+    app.add_exception_handler(
+        RateLimitExceeded,
+        _rate_limit_exceeded_handler,
+    )
 
     origins = [
     "http://localhost:5173",

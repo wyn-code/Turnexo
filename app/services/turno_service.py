@@ -25,12 +25,23 @@ SOLAPAMIENTO_DETALLE = "El empleado ya tiene un turno en ese horario"
 LIMITE_TURNOS_DIA_FREE = 10
 
 
-def listar_turnos(db: Session):
-    return db.query(Turno).all()
+def listar_turnos(db: Session, id_negocio: int | None = None):
+    query = db.query(Turno)
+    if id_negocio is not None:
+        query = query.filter(Turno.id_negocio == id_negocio)
+    return query.all()
 
 
-def obtener_turno_por_id(db: Session, turno_id: int):
-    return db.query(Turno).filter(Turno.id_turno == turno_id).first()
+def obtener_turno_por_id(db: Session, turno_id: int, id_negocio: int | None = None):
+    turno = db.query(Turno).filter(Turno.id_turno == turno_id).first()
+
+    if not turno:
+        raise HTTPException(status_code=404, detail="Turno no encontrado")
+
+    if id_negocio is not None and turno.id_negocio != id_negocio:
+        raise HTTPException(status_code=404, detail="Turno no encontrado")
+
+    return turno
 
 
 def obtener_servicio_del_negocio(db: Session, id_servicio: int, id_negocio: int):
@@ -307,10 +318,13 @@ def crear_turno(db: Session, turno: TurnoCrear, background_tasks: BackgroundTask
         _lanzar_error_integridad(e)
 
 
-def actualizar_turno(db: Session, turno_id: int, datos: TurnoActualizar):
+def actualizar_turno(db: Session, turno_id: int, datos: TurnoActualizar, id_negocio: int | None = None):
     turno_db = db.query(Turno).filter(Turno.id_turno == turno_id).first()
 
     if not turno_db:
+        raise HTTPException(status_code=404, detail="Turno no encontrado")
+
+    if id_negocio is not None and turno_db.id_negocio != id_negocio:
         raise HTTPException(status_code=404, detail="Turno no encontrado")
 
     nuevo_id_negocio = (
@@ -409,10 +423,13 @@ def actualizar_turno(db: Session, turno_id: int, datos: TurnoActualizar):
         _lanzar_error_integridad(e)
 
 
-def borrar_turno(db: Session, turno_id: int):
+def borrar_turno(db: Session, turno_id: int, id_negocio: int | None = None):
     turno_db = db.query(Turno).filter(Turno.id_turno == turno_id).first()
 
     if not turno_db:
+        raise HTTPException(status_code=404, detail="Turno no encontrado")
+
+    if id_negocio is not None and turno_db.id_negocio != id_negocio:
         raise HTTPException(status_code=404, detail="Turno no encontrado")
 
     try:

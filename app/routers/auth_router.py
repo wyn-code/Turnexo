@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from app.services.auth_service import (
     login_user,
@@ -28,6 +28,7 @@ from app.schemas.auth_schema import (
 )
 from app.services.email_service import send_verification_email
 from app.core.dependencies import get_current_user, get_db
+from app.core.rate_limit import limiter
 from app.models.usuario import Usuario
 
 
@@ -51,13 +52,27 @@ def register(
     }
 
 
-@router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    _, token = login_user(db, payload)
-    return token
+@router.post("/login")
+@limiter.limit("15/minute")
+def login(
+    request: Request,
+    payload: LoginRequest,
+    db: Session = Depends(get_db),
+):
+    usuario, token = login_user(db, payload)
+
+    if token is not None:
+        return token
+
+    return {
+        "requires_2fa": True,
+        "email": usuario.email_us,
+    }
 
 @router.post("/google", response_model=GoogleLoginResponse)
+@limiter.limit("15/minute")
 def google_login(
+    request: Request,
     payload: GoogleLoginRequest,
     db: Session = Depends(get_db),
 ):
@@ -142,7 +157,9 @@ def verify_email_endpoint(
     )
 
 @router.post("/verify-credentials")
+@limiter.limit("15/minute")
 def verify_credentials_endpoint(
+    request: Request,
     payload: LoginRequest,
     db: Session = Depends(get_db),
 ):
@@ -155,7 +172,9 @@ def verify_credentials_endpoint(
     "/verify-2fa",
     response_model=TokenResponse,
 )
+@limiter.limit("10/minute")
 def verify_2fa_endpoint(
+    request: Request,
     payload: Verify2FARequest,
     db: Session = Depends(get_db),
 ):
@@ -166,7 +185,9 @@ def verify_2fa_endpoint(
     )
 
 @router.post("/resend-code")
+@limiter.limit("10/minute")
 def resend_code_endpoint(
+    request: Request,
     payload: ResendCodeRequest,
     db: Session = Depends(get_db),
 ):

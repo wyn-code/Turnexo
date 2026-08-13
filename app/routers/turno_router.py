@@ -49,16 +49,24 @@ def listar_por_rango(
 
 
 @router.get("/", response_model=list[TurnoResponse])
-def listar(db: Session = Depends(get_db)):
-    return listar_turnos(db)
+def listar(
+    negocio: Negocio = Depends(get_current_negocio),
+    db: Session = Depends(get_db),
+):
+    return listar_turnos(db, id_negocio=negocio.id_negocio)
 
 
 @router.get("/{turno_id}", response_model=TurnoResponse)
-def obtener(turno_id: int, db: Session = Depends(get_db)):
-    turno = obtener_turno_por_id(db, turno_id)
-    if not turno:
-        raise HTTPException(status_code=404, detail="Turno no encontrado")
-    return turno
+def obtener(
+    turno_id: int,
+    negocio: Negocio = Depends(get_current_negocio),
+    db: Session = Depends(get_db),
+):
+    return obtener_turno_por_id(
+        db,
+        turno_id,
+        id_negocio=negocio.id_negocio,
+    )
 
 
 @router.post("/", response_model=TurnoResponse, status_code=201)
@@ -67,13 +75,27 @@ def crear(turno: TurnoCrear, background_tasks: BackgroundTasks, db: Session = De
 
 
 @router.put("/{turno_id}", response_model=TurnoResponse)
-def actualizar(turno_id: int, datos: TurnoActualizar, db: Session = Depends(get_db)):
-    return actualizar_turno(db, turno_id, datos)
+def actualizar(
+    turno_id: int,
+    datos: TurnoActualizar,
+    negocio: Negocio = Depends(get_current_negocio),
+    db: Session = Depends(get_db),
+):
+    return actualizar_turno(
+        db,
+        turno_id,
+        datos,
+        id_negocio=negocio.id_negocio,
+    )
 
 
 @router.delete("/{turno_id}", status_code=204)
-def borrar(turno_id: int, db: Session = Depends(get_db)):
-    borrar_turno(db, turno_id)
+def borrar(
+    turno_id: int,
+    negocio: Negocio = Depends(get_current_negocio),
+    db: Session = Depends(get_db),
+):
+    borrar_turno(db, turno_id, id_negocio=negocio.id_negocio)
 
 
 @router.put("/{turno_id}/estado", response_model=TurnoResponse)

@@ -8,6 +8,52 @@ from app.services.email_service import send_otp_email
 def _utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
+
+def _check_estado(usuario: Usuario) -> None:
+    if not usuario.estado:
+        raise HTTPException(
+            status_code=401,
+            detail="Tu cuenta está desactivada. Contactá al administrador.",
+        )
+
+
+def _issue_token_or_send_otp(
+    db: Session,
+    usuario: Usuario,
+) -> TokenResponse | None:
+    """Devuelve un token si la 2FA fue verificada recientemente, o envía
+    un OTP nuevo y devuelve None (el login debe continuar por /verify-2fa)."""
+    if (
+        usuario.last_2fa_verified_at is not None
+        and usuario.last_2fa_verified_at
+        >= _utcnow() - timedelta(hours=TWO_FACTOR_TOKEN_EXPIRE_HOURS)
+    ):
+        return TokenResponse(
+            access_token=create_access_token(
+                subject=usuario.id_us,
+                expires_delta=timedelta(
+                    hours=TWO_FACTOR_TOKEN_EXPIRE_HOURS
+                ),
+            )
+        )
+
+    otp = f"{random.randint(100000, 999999)}"
+
+    usuario.otp_code = otp
+    usuario.otp_expires_at = (
+        _utcnow() + timedelta(minutes=OTP_EXPIRE_MINUTES)
+    )
+    usuario.otp_attempts = 0
+
+    db.commit()
+
+    send_otp_email(
+        usuario.email_us,
+        otp,
+    )
+
+    return None
+
 from app.services.email_service import (
     send_verification_email,
     send_reset_password_email,
@@ -20,6 +66,7 @@ from sqlalchemy.orm import Session
 from app.core.config import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     GOOGLE_CLIENT_ID,
+    OTP_EXPIRE_MINUTES,
     TWO_FACTOR_TOKEN_EXPIRE_HOURS,
 )
 from app.core.security import (
@@ -104,7 +151,10 @@ def register_user(db: Session, data: RegisterRequest) -> Usuario:
     return usuario
 
 
-def login_user(db: Session, data: LoginRequest) -> tuple[Usuario, TokenResponse]:
+def login_user(
+    db: Session,
+    data: LoginRequest,
+) -> tuple[Usuario, TokenResponse | None]:
     usuario = (
         db.query(Usuario)
         .filter(
@@ -147,16 +197,11 @@ def login_user(db: Session, data: LoginRequest) -> tuple[Usuario, TokenResponse]
             detail="Debes verificar tu email antes de iniciar sesión",
     )
 
-    token = create_access_token(
-        subject=usuario.id_us,
-        expires_delta=timedelta(
-            minutes=ACCESS_TOKEN_EXPIRE_MINUTES
-        ),
-    )
+    _check_estado(usuario)
 
-    return usuario, TokenResponse(
-        access_token=token
-    )
+    token = _issue_token_or_send_otp(db, usuario)
+
+    return usuario, token
 
 
 def build_me_response(db: Session, current_user: Usuario) -> dict:
@@ -393,40 +438,23 @@ def verify_credentials(
             detail="Debes verificar tu email antes de iniciar sesión",
         )
 
-    if (
-        usuario.last_2fa_verified_at is not None
-        and usuario.last_2fa_verified_at
-        >= _utcnow() - timedelta(hours=TWO_FACTOR_TOKEN_EXPIRE_HOURS)
-    ):
-        access_token = create_access_token(
-            subject=usuario.id_us,
-            expires_delta=timedelta(
-                hours=TWO_FACTOR_TOKEN_EXPIRE_HOURS
-            ),
-        )
+    _check_estado(usuario)
+
+    token = _issue_token_or_send_otp(db, usuario)
+
+    if token is not None:
         return {
             "success": True,
             "message": "Token emitido",
-            "access_token": access_token,
+            "requires_2fa": False,
+            "access_token": token.access_token,
         }
-
-    otp = f"{random.randint(100000, 999999)}"
-
-    usuario.otp_code = otp
-    usuario.otp_expires_at = (
-        _utcnow() + timedelta(hours=TWO_FACTOR_TOKEN_EXPIRE_HOURS)
-    )
-
-    db.commit()
-
-    send_otp_email(
-        usuario.email_us,
-        otp,
-    )
 
     return {
         "success": True,
+        "requires_2fa": True,
         "message": "Código enviado al correo",
+        "email": usuario.email_us,
     }
 
 def verify_2fa(
@@ -448,6 +476,8 @@ def verify_2fa(
             detail="Usuario no encontrado",
         )
 
+    _check_estado(usuario)
+
     if (
         usuario.otp_expires_at is None
         or usuario.otp_expires_at < _utcnow()
@@ -457,7 +487,15 @@ def verify_2fa(
             detail="El código de verificación ha expirado. Solicitá uno nuevo.",
         )
 
+    if usuario.otp_attempts >= 5:
+        raise HTTPException(
+            status_code=401,
+            detail="Superaste el límite de intentos. Solicitá un código nuevo.",
+        )
+
     if usuario.otp_code != code:
+        usuario.otp_attempts = (usuario.otp_attempts or 0) + 1
+        db.commit()
         raise HTTPException(
             status_code=401,
             detail="Código incorrecto",
@@ -465,6 +503,7 @@ def verify_2fa(
 
     usuario.otp_code = None
     usuario.otp_expires_at = None
+    usuario.otp_attempts = 0
     usuario.last_2fa_verified_at = _utcnow()
 
     db.commit()
@@ -505,40 +544,23 @@ def resend_otp_code(
             detail="Debes verificar tu email antes de iniciar sesión",
         )
 
-    if (
-        usuario.last_2fa_verified_at is not None
-        and usuario.last_2fa_verified_at
-        >= _utcnow() - timedelta(hours=TWO_FACTOR_TOKEN_EXPIRE_HOURS)
-    ):
-        access_token = create_access_token(
-            subject=usuario.id_us,
-            expires_delta=timedelta(
-                hours=TWO_FACTOR_TOKEN_EXPIRE_HOURS
-            ),
-        )
+    _check_estado(usuario)
+
+    token = _issue_token_or_send_otp(db, usuario)
+
+    if token is not None:
         return {
             "success": True,
             "message": "Token emitido",
-            "access_token": access_token,
+            "requires_2fa": False,
+            "access_token": token.access_token,
         }
-
-    otp = f"{random.randint(100000, 999999)}"
-
-    usuario.otp_code = otp
-    usuario.otp_expires_at = (
-        _utcnow() + timedelta(hours=TWO_FACTOR_TOKEN_EXPIRE_HOURS)
-    )
-
-    db.commit()
-
-    send_otp_email(
-        usuario.email_us,
-        otp,
-    )
 
     return {
         "success": True,
+        "requires_2fa": True,
         "message": "Código reenviado al correo",
+        "email": usuario.email_us,
     }
 
 

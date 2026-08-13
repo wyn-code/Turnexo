@@ -32,3 +32,11 @@
 - README actualizado: título "Turnogo", PostgreSQL (Supabase) en vez de SQL Server
 - Eliminados ~20 `print()` de debug en services, routers y database
 - Actualizado `database.py` para silenciar prints de conexión
+
+### Fase 6 — Seguridad (hallazgos críticos)
+- **CRÍTICO 1** — `usuario_router`: todos los endpoints (GET, POST, PUT, PATCH estado, DELETE, `/admin`) ahora exigen `get_current_user`
+- **CRÍTICO 2** — `turno_router`: `GET /`, `GET /{id}`, `PUT /{id}`, `DELETE /{id}` ahora exigen `get_current_negocio` y verificación de propiedad del negocio en `turno_service`; `por-rango` y `POST /` siguen públicos (booking)
+- **CRÍTICO 3** — `config.py`: `SECRET_KEY` sin default inseguro; ahora obligatoria
+- **CRÍTICO 4** — Migración `20260812120000_rls_politicas.sql`: políticas RLS de lectura pública para el catálogo; tablas sensibles denegadas a `anon`/`authenticated`
+- Docs actualizados: `AUTENTICACION.md`, `AUTORIZACION.md`, `SEGURIDAD.md`, `CONFIGURACION.md`, `DESPLIEGUE.md`
+- **122 tests pasando, 0 fallos**

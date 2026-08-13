@@ -132,6 +132,7 @@ def test_login_user_ok_con_email(db):
         email_us="rocco@test.com",
         contrasena_us=get_password_hash(password),
         email_verified=True,
+        last_2fa_verified_at=_utcnow(),
     )
 
     db.add(usuario)
@@ -157,6 +158,7 @@ def test_login_user_ok_con_usuario(db):
         email_us="rocco@test.com",
         contrasena_us=get_password_hash(password),
         email_verified=True,
+        last_2fa_verified_at=_utcnow(),
     )
 
     db.add(usuario)
@@ -235,6 +237,7 @@ def test_login_devuelve_token_string(db):
         email_us="rocco@test.com",
         contrasena_us=get_password_hash("Password123!"),
         email_verified=True,
+        last_2fa_verified_at=_utcnow(),
     )
 
     db.add(usuario)
@@ -599,6 +602,7 @@ def test_forgot_then_reset_then_login(db, monkeypatch):
         email_us="resetflow@test.com",
         contrasena_us=get_password_hash("OldPassword123!"),
         email_verified=True,
+        last_2fa_verified_at=_utcnow(),
     )
 
     db.add(usuario)
@@ -752,6 +756,7 @@ def test_forgot_reset_login_flow_endpoint(client, db, monkeypatch):
         auth_service.Usuario.email_us == "flowtest@test.com"
     ).first()
     usuario.email_verified = True
+    usuario.last_2fa_verified_at = _utcnow()
     db.commit()
 
     forgot_response = client.post(
@@ -1023,6 +1028,7 @@ def test_set_password_cuenta_sin_password(db):
         contrasena_us=None,
         email_verified=True,
         auth_provider="google",
+        last_2fa_verified_at=_utcnow(),
     )
     db.add(usuario)
     db.commit()
@@ -1218,3 +1224,196 @@ def test_set_password_endpoint_requiere_auth(client, db):
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
+
+
+# ---------------- 2FA / OTP ----------------
+
+def _crear_usuario_con_otp(db):
+    password = "Password123!"
+    usuario = Usuario(
+        usuario_us="otpuser",
+        email_us="otpuser@test.com",
+        contrasena_us=get_password_hash(password),
+        email_verified=True,
+    )
+    db.add(usuario)
+    db.commit()
+    return usuario, password
+
+
+def test_login_sin_2fa_reciente_envia_otp(db):
+    usuario, password = _crear_usuario_con_otp(db)
+
+    user, token = auth_service.login_user(
+        db,
+        LoginRequest(
+            email_us="otpuser@test.com",
+            contrasena_us=password,
+        ),
+    )
+
+    assert user.id_us == usuario.id_us
+    assert token is None
+    db.refresh(usuario)
+    assert usuario.otp_code is not None
+    assert usuario.otp_attempts == 0
+
+
+def test_verify_2fa_ok_limpia_otp_y_emite_token(db):
+    usuario, password = _crear_usuario_con_otp(db)
+    auth_service.login_user(
+        db,
+        LoginRequest(email_us="otpuser@test.com", contrasena_us=password),
+    )
+    db.refresh(usuario)
+
+    response = auth_service.verify_2fa(
+        db,
+        usuario.email_us,
+        usuario.otp_code,
+    )
+
+    assert response.access_token
+    db.refresh(usuario)
+    assert usuario.otp_code is None
+    assert usuario.otp_expires_at is None
+    assert usuario.otp_attempts == 0
+    assert usuario.last_2fa_verified_at is not None
+
+
+def test_verify_2fa_codigo_expirado(db):
+    usuario, password = _crear_usuario_con_otp(db)
+    auth_service.login_user(
+        db,
+        LoginRequest(email_us="otpuser@test.com", contrasena_us=password),
+    )
+    db.refresh(usuario)
+    usuario.otp_expires_at = _utcnow() - timedelta(minutes=1)
+    db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        auth_service.verify_2fa(db, usuario.email_us, usuario.otp_code)
+    assert exc.value.status_code == 401
+
+
+def test_verify_2fa_codigo_incorrecto_incrementa_intentos(db):
+    usuario, password = _crear_usuario_con_otp(db)
+    auth_service.login_user(
+        db,
+        LoginRequest(email_us="otpuser@test.com", contrasena_us=password),
+    )
+    db.refresh(usuario)
+
+    with pytest.raises(HTTPException) as exc:
+        auth_service.verify_2fa(db, usuario.email_us, "000000")
+    assert exc.value.status_code == 401
+    db.refresh(usuario)
+    assert usuario.otp_attempts == 1
+
+
+def test_verify_2fa_bloqueado_despues_de_5_intentos(db):
+    usuario, password = _crear_usuario_con_otp(db)
+    auth_service.login_user(
+        db,
+        LoginRequest(email_us="otpuser@test.com", contrasena_us=password),
+    )
+    db.refresh(usuario)
+    usuario.otp_attempts = 5
+    db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        auth_service.verify_2fa(db, usuario.email_us, usuario.otp_code)
+    assert exc.value.status_code == 401
+    assert "límite" in exc.value.detail
+
+
+def test_verify_2fa_codigo_reutilizado(db):
+    usuario, password = _crear_usuario_con_otp(db)
+    auth_service.login_user(
+        db,
+        LoginRequest(email_us="otpuser@test.com", contrasena_us=password),
+    )
+    db.refresh(usuario)
+    codigo = usuario.otp_code
+
+    auth_service.verify_2fa(db, usuario.email_us, codigo)
+
+    with pytest.raises(HTTPException) as exc:
+        auth_service.verify_2fa(db, usuario.email_us, codigo)
+    assert exc.value.status_code == 401
+
+
+def test_verify_2fa_usuario_desactivado(db):
+    usuario, password = _crear_usuario_con_otp(db)
+    auth_service.login_user(
+        db,
+        LoginRequest(email_us="otpuser@test.com", contrasena_us=password),
+    )
+    db.refresh(usuario)
+    usuario.estado = False
+    db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        auth_service.verify_2fa(db, usuario.email_us, usuario.otp_code)
+    assert exc.value.status_code == 401
+
+
+def test_login_usuario_desactivado(db):
+    usuario, password = _crear_usuario_con_otp(db)
+    usuario.estado = False
+    db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        auth_service.login_user(
+            db,
+            LoginRequest(email_us="otpuser@test.com", contrasena_us=password),
+        )
+    assert exc.value.status_code == 401
+
+
+def test_resend_otp_invalida_anterior_y_resetea_intentos(db):
+    usuario, password = _crear_usuario_con_otp(db)
+    auth_service.login_user(
+        db,
+        LoginRequest(email_us="otpuser@test.com", contrasena_us=password),
+    )
+    db.refresh(usuario)
+    codigo_anterior = usuario.otp_code
+
+    with pytest.raises(HTTPException):
+        auth_service.verify_2fa(db, usuario.email_us, "000001")
+    db.refresh(usuario)
+    assert usuario.otp_attempts == 1
+
+    auth_service.resend_otp_code(db, usuario.email_us)
+    db.refresh(usuario)
+
+    assert usuario.otp_attempts == 0
+    assert usuario.otp_code is not None
+    assert usuario.otp_code != codigo_anterior
+
+    with pytest.raises(HTTPException):
+        auth_service.verify_2fa(db, usuario.email_us, codigo_anterior)
+
+
+def test_login_endpoint_requiere_2fa_y_devuelve_email(client, db):
+    password = "Password123!"
+    usuario = Usuario(
+        usuario_us="ep2fa",
+        email_us="ep2fa@test.com",
+        contrasena_us=get_password_hash(password),
+        email_verified=True,
+    )
+    db.add(usuario)
+    db.commit()
+
+    response = client.post(
+        "/api/auth/login",
+        json={"email_us": "ep2fa@test.com", "contrasena_us": password},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["requires_2fa"] is True
+    assert body["email"] == "ep2fa@test.com"
+    assert "access_token" not in body

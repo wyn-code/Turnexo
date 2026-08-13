@@ -279,6 +279,45 @@ def test_cancelar_suscripcion_inexistente_error(db, seed_data):
     assert exc.value.status_code == 404
 
 
+def test_cancelar_suscripcion_de_otro_negocio_no_permitido(db, seed_data):
+    from app.models.negocio import Negocio
+
+    plan = _crear_plan_basico(db)
+    negocio = seed_data["negocio"]
+
+    otro_negocio = Negocio(
+        id_negocio=2,
+        usuario_id=seed_data["usuario_2"].id_us,
+        nombre="Otro Negocio",
+        id_categoria=1,
+        wsp="123456789",
+        direccion="Av. Test 456",
+        ciudad="San Nicolas",
+        activo=True,
+        slug="otro-negocio",
+    )
+    db.add(otro_negocio)
+    db.flush()
+
+    suscripcion = Suscripcion(
+        id_negocio=negocio.id_negocio,
+        id_plan=plan.id_plan,
+        estado="activa",
+        fecha_inicio=datetime.now(),
+        fecha_fin=datetime.now() + timedelta(days=30),
+    )
+    db.add(suscripcion)
+    db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        payment_service.cancelar_suscripcion(
+            db,
+            suscripcion.id_suscripcion,
+            otro_negocio.id_negocio,
+        )
+    assert exc.value.status_code == 404
+
+
 def test_toggle_renovacion_automatica_apagar(db, seed_data):
     plan = _crear_plan_basico(db)
     negocio = seed_data["negocio"]

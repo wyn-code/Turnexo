@@ -1,7 +1,10 @@
+import os
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
+
+os.environ["RATE_LIMIT_ENABLED"] = "false"
 
 from app.db.base import Base
 from app.core.dependencies import get_db as get_db_core
@@ -61,6 +64,25 @@ def db(setup_db):
         session.close()
 
 
+@pytest.fixture(autouse=True)
+def _mock_email_senders(monkeypatch):
+    """Evita llamadas reales a Resend durante los tests."""
+    import app.services.email_service as email_service
+    import app.services.auth_service as auth_service
+
+    for module in (email_service, auth_service):
+        monkeypatch.setattr(
+            module,
+            "send_otp_email",
+            lambda *args, **kwargs: None,
+        )
+        monkeypatch.setattr(
+            module,
+            "send_verification_email",
+            lambda *args, **kwargs: None,
+        )
+
+
 from app.main import app 
 from app.core.dependencies import get_db
 
@@ -80,6 +102,7 @@ def client(db):
 
 @pytest.fixture()
 def seed_data(db):
+    from datetime import datetime, timezone
     from app.models.negocio import Negocio
     from app.models.servicio import Servicio
     from app.models.empleado import Empleado
@@ -88,12 +111,15 @@ def seed_data(db):
     from app.models.estado_turno import EstadoTurno
     from app.core.security import get_password_hash
 
+    _recent_2fa = datetime.now(timezone.utc).replace(tzinfo=None)
+
     usuario_1 = Usuario(
         id_us=1,
         usuario_us="testuser1",
         email_us="test1@test.com",
         contrasena_us=get_password_hash("Test1234567!"),
         email_verified=True,
+        last_2fa_verified_at=_recent_2fa,
     )
 
     usuario_2 = Usuario(
@@ -102,6 +128,7 @@ def seed_data(db):
         email_us="test2@test.com",
         contrasena_us=get_password_hash("Test1234567!"),
         email_verified=True,
+        last_2fa_verified_at=_recent_2fa,
     )
 
     db.add_all([usuario_1, usuario_2])

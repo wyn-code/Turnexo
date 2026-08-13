@@ -1,10 +1,12 @@
 import decouple
 
 
-SECRET_KEY = decouple.config("SECRET_KEY", default="change-this-secret-in-production")
+SECRET_KEY = decouple.config("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(decouple.config("ACCESS_TOKEN_EXPIRE_MINUTES", default=60))
 TWO_FACTOR_TOKEN_EXPIRE_HOURS = int(decouple.config("TWO_FACTOR_TOKEN_EXPIRE_HOURS", default=9))
+OTP_EXPIRE_MINUTES = int(decouple.config("OTP_EXPIRE_MINUTES", default=10))
+RATE_LIMIT_ENABLED = decouple.config("RATE_LIMIT_ENABLED", default=True, cast=bool)
 RESEND_API_KEY = decouple.config("RESEND_API_KEY")
 FRONTEND_URL = decouple.config("FRONTEND_URL", default="https://www.turnogo.app")
 MAPBOX_ACCESS_TOKEN = decouple.config("MAPBOX_ACCESS_TOKEN")

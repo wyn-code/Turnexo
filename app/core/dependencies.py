@@ -50,6 +50,13 @@ def get_current_user(
     if usuario is None:
         raise credentials_exception
 
+    if not usuario.estado:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Tu cuenta está desactivada. Contactá al administrador.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     return usuario
 
 
@@ -83,3 +90,29 @@ def require_feature(feature_key: str):
         return negocio
 
     return dependency
+
+
+def require_role(rol: str):
+    def dependency(
+        current_user: Usuario = Depends(get_current_user),
+    ) -> Usuario:
+        if current_user.role != rol:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tenés permisos para realizar esta acción",
+            )
+        return current_user
+
+    return dependency
+
+
+def current_user_or_admin(
+    usuario_id: int,
+    current_user: Usuario = Depends(get_current_user),
+) -> Usuario:
+    if current_user.role != "admin" and current_user.id_us != usuario_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tenés permisos para realizar esta acción",
+        )
+    return current_user
