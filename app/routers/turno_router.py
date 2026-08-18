@@ -11,6 +11,7 @@ from app.schemas.appointment_schema import (
     TurnoCrear,
     TurnoActualizar,
     TurnoResponse,
+    TurnoDisponibilidad,
 )
 from app.services.turno_service import (
     listar_turnos,
@@ -20,6 +21,7 @@ from app.services.turno_service import (
     borrar_turno,
     cambiar_estado_turno,
     listar_turnos_por_negocio_y_rango,
+    listar_turnos_disponibilidad,
 )
 
 router = APIRouter(prefix="/turnos", tags=["Turnos"])
@@ -27,6 +29,29 @@ router = APIRouter(prefix="/turnos", tags=["Turnos"])
 
 @router.get("/por-rango", response_model=list[TurnoResponse])
 def listar_por_rango(
+    desde: datetime = Query(..., description="Formato ISO: 2026-04-01T00:00:00"),
+    hasta: datetime = Query(..., description="Formato ISO: 2026-05-01T00:00:00"),
+    id_empleado: int | None = Query(None),
+    negocio: Negocio = Depends(get_current_negocio),
+    db: Session = Depends(get_db),
+):
+    if hasta <= desde:
+        raise HTTPException(
+            status_code=400,
+            detail="'hasta' debe ser mayor que 'desde'",
+        )
+
+    return listar_turnos_por_negocio_y_rango(
+        db=db,
+        id_negocio=negocio.id_negocio,
+        desde=desde,
+        hasta=hasta,
+        id_empleado=id_empleado,
+    )
+
+
+@router.get("/disponibilidad", response_model=list[TurnoDisponibilidad])
+def listar_disponibilidad(
     id_negocio: int = Query(...),
     desde: datetime = Query(..., description="Formato ISO: 2026-04-01T00:00:00"),
     hasta: datetime = Query(..., description="Formato ISO: 2026-05-01T00:00:00"),
@@ -39,7 +64,7 @@ def listar_por_rango(
             detail="'hasta' debe ser mayor que 'desde'",
         )
 
-    return listar_turnos_por_negocio_y_rango(
+    return listar_turnos_disponibilidad(
         db=db,
         id_negocio=id_negocio,
         desde=desde,

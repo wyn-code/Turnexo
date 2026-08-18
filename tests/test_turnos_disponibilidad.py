@@ -1,6 +1,12 @@
 from datetime import datetime, time, timedelta
 from fastapi.testclient import TestClient
 
+from tests.auth_helpers import obtener_token
+
+
+def _headers_duenio(client):
+    return obtener_token(client, "test1@test.com", "Test1234567!")
+
 
 def crear_cliente(client: TestClient, telefono: str, nombre="Rocco", apellido="Lavecchia"):
     res = client.post(
@@ -92,16 +98,47 @@ def test_listar_turnos_por_rango(client: TestClient, seed_data):
     res = client.get(
         "/api/turnos/por-rango",
         params={
-            "id_negocio": 1,
             "desde": "2026-04-01T00:00:00",
             "hasta": "2026-05-01T00:00:00",
             "id_empleado": 1,
+        },
+        headers=_headers_duenio(client),
+    )
+
+    assert res.status_code == 200, res.text
+    data = res.json()
+    assert isinstance(data, list)
+
+
+def test_disponibilidad_publico_sin_auth(client: TestClient, seed_data):
+    res = client.get(
+        "/api/turnos/disponibilidad",
+        params={
+            "id_negocio": seed_data["negocio"].id_negocio,
+            "desde": "2026-04-01T00:00:00",
+            "hasta": "2026-05-01T00:00:00",
         },
     )
 
     assert res.status_code == 200, res.text
     data = res.json()
     assert isinstance(data, list)
+    for turno in data:
+        assert "cliente" not in turno
+        assert "id_cliente" not in turno
+
+
+def test_disponibilidad_rechaza_rango_invalido(client: TestClient, seed_data):
+    res = client.get(
+        "/api/turnos/disponibilidad",
+        params={
+            "id_negocio": seed_data["negocio"].id_negocio,
+            "desde": "2026-05-01T00:00:00",
+            "hasta": "2026-04-01T00:00:00",
+        },
+    )
+
+    assert res.status_code == 400
 
 
 def test_rechaza_turno_con_empleado_de_otro_negocio(client: TestClient, db, seed_data):

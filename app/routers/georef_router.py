@@ -6,7 +6,6 @@ from app.services.georef_service import (
     obtener_provincias,
     obtener_localidades
 )
-from app.services.mapbox_service import obtener_coordenadas
 
 router = APIRouter(
     prefix="/georef",
@@ -22,12 +21,3 @@ def provincias(db: Session = Depends(get_db)):
 @router.get("/localidades", response_model=list[LocalidadResponse])
 def localidades(id_provincia: int, db: Session = Depends(get_db)):
     return obtener_localidades(db, id_provincia)
-
-
-@router.get("/test-geocoding")
-def test_geocoding():
-    return obtener_coordenadas(
-        "Av. Corrientes 1234",
-        "Buenos Aires",
-        "Buenos Aires",
-    )

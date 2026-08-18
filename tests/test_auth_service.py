@@ -969,6 +969,44 @@ def test_google_login_endpoint_ok(client, db):
     assert body["account_created"] is False
 
 
+def test_google_login_usuario_desactivado(db):
+    usuario = Usuario(
+        usuario_us="rocco",
+        email_us="rocco@test.com",
+        contrasena_us=get_password_hash("Password123!"),
+        email_verified=True,
+        google_id="google-sub-1",
+        estado=False,
+    )
+    db.add(usuario)
+    db.commit()
+
+    with _mock_google_token(GOOGLE_PAYLOAD):
+        with pytest.raises(HTTPException) as exc:
+            auth_service.login_with_google(db, "fake-id-token")
+
+    assert exc.value.status_code == 401
+    assert "desactivada" in exc.value.detail.lower()
+
+
+def test_google_login_usuario_desactivado_por_email(db):
+    usuario = Usuario(
+        usuario_us="rocco",
+        email_us="rocco@test.com",
+        contrasena_us=get_password_hash("Password123!"),
+        email_verified=True,
+        estado=False,
+    )
+    db.add(usuario)
+    db.commit()
+
+    with _mock_google_token(GOOGLE_PAYLOAD):
+        with pytest.raises(HTTPException) as exc:
+            auth_service.login_with_google(db, "fake-id-token")
+
+    assert exc.value.status_code == 401
+
+
 # ---------------- LOGIN LOCAL SIN CONTRASEÑA ----------------
 
 def test_login_local_sin_password(db):
@@ -1241,6 +1279,17 @@ def _crear_usuario_con_otp(db):
     return usuario, password
 
 
+def _obtener_otp(monkeypatch):
+    """Parchea send_otp_email para capturar los códigos OTP generados."""
+    codigos = []
+    monkeypatch.setattr(
+        auth_service,
+        "send_otp_email",
+        lambda email, otp: codigos.append(otp),
+    )
+    return codigos
+
+
 def test_login_sin_2fa_reciente_envia_otp(db):
     usuario, password = _crear_usuario_con_otp(db)
 
@@ -1259,7 +1308,8 @@ def test_login_sin_2fa_reciente_envia_otp(db):
     assert usuario.otp_attempts == 0
 
 
-def test_verify_2fa_ok_limpia_otp_y_emite_token(db):
+def test_verify_2fa_ok_limpia_otp_y_emite_token(db, monkeypatch):
+    codigos = _obtener_otp(monkeypatch)
     usuario, password = _crear_usuario_con_otp(db)
     auth_service.login_user(
         db,
@@ -1270,7 +1320,7 @@ def test_verify_2fa_ok_limpia_otp_y_emite_token(db):
     response = auth_service.verify_2fa(
         db,
         usuario.email_us,
-        usuario.otp_code,
+        codigos[-1],
     )
 
     assert response.access_token
@@ -1327,14 +1377,15 @@ def test_verify_2fa_bloqueado_despues_de_5_intentos(db):
     assert "límite" in exc.value.detail
 
 
-def test_verify_2fa_codigo_reutilizado(db):
+def test_verify_2fa_codigo_reutilizado(db, monkeypatch):
+    codigos = _obtener_otp(monkeypatch)
     usuario, password = _crear_usuario_con_otp(db)
     auth_service.login_user(
         db,
         LoginRequest(email_us="otpuser@test.com", contrasena_us=password),
     )
     db.refresh(usuario)
-    codigo = usuario.otp_code
+    codigo = codigos[-1]
 
     auth_service.verify_2fa(db, usuario.email_us, codigo)
 
@@ -1371,14 +1422,15 @@ def test_login_usuario_desactivado(db):
     assert exc.value.status_code == 401
 
 
-def test_resend_otp_invalida_anterior_y_resetea_intentos(db):
+def test_resend_otp_invalida_anterior_y_resetea_intentos(db, monkeypatch):
+    codigos = _obtener_otp(monkeypatch)
     usuario, password = _crear_usuario_con_otp(db)
     auth_service.login_user(
         db,
         LoginRequest(email_us="otpuser@test.com", contrasena_us=password),
     )
     db.refresh(usuario)
-    codigo_anterior = usuario.otp_code
+    codigo_anterior = codigos[-1]
 
     with pytest.raises(HTTPException):
         auth_service.verify_2fa(db, usuario.email_us, "000001")
@@ -1391,6 +1443,7 @@ def test_resend_otp_invalida_anterior_y_resetea_intentos(db):
     assert usuario.otp_attempts == 0
     assert usuario.otp_code is not None
     assert usuario.otp_code != codigo_anterior
+    assert codigos[-1] != codigo_anterior
 
     with pytest.raises(HTTPException):
         auth_service.verify_2fa(db, usuario.email_us, codigo_anterior)
@@ -1417,3 +1470,48 @@ def test_login_endpoint_requiere_2fa_y_devuelve_email(client, db):
     assert body["requires_2fa"] is True
     assert body["email"] == "ep2fa@test.com"
     assert "access_token" not in body
+
+
+# ---------------- RATE LIMITING ----------------
+
+def test_register_rate_limited(client, db):
+    from app.core.rate_limit import limiter
+
+    limiter.enabled = True
+    try:
+        payload = {
+            "usuario_us": "ratelimit",
+            "email_us": "ratelimit@test.com",
+            "contrasena_us": "Test1234567!",
+        }
+        for _ in range(5):
+            resp = client.post("/api/auth/register", json=payload)
+            assert resp.status_code in (200, 409)
+
+        resp = client.post("/api/auth/register", json=payload)
+        assert resp.status_code == 429
+    finally:
+        limiter.enabled = False
+        limiter.reset()
+
+
+def test_forgot_password_rate_limited(client, db):
+    from app.core.rate_limit import limiter
+
+    limiter.enabled = True
+    try:
+        for _ in range(5):
+            resp = client.post(
+                "/api/auth/forgot-password",
+                json={"email_us": "noexiste@test.com"},
+            )
+            assert resp.status_code in (200, 429)
+
+        resp = client.post(
+            "/api/auth/forgot-password",
+            json={"email_us": "noexiste@test.com"},
+        )
+        assert resp.status_code == 429
+    finally:
+        limiter.enabled = False
+        limiter.reset()

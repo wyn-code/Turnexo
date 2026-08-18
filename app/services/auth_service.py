@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import secrets
 import re
-import random
 from google.auth.exceptions import GoogleAuthError
 from app.services.email_service import send_otp_email
 
@@ -37,9 +36,9 @@ def _issue_token_or_send_otp(
             )
         )
 
-    otp = f"{random.randint(100000, 999999)}"
+    otp = f"{secrets.randbelow(900000) + 100000}"
 
-    usuario.otp_code = otp
+    usuario.otp_code = hash_otp(otp)
     usuario.otp_expires_at = (
         _utcnow() + timedelta(minutes=OTP_EXPIRE_MINUTES)
     )
@@ -72,6 +71,8 @@ from app.core.config import (
 from app.core.security import (
     create_access_token,
     get_password_hash,
+    hash_otp,
+    verify_otp,
     verify_password,
 )
 
@@ -493,7 +494,7 @@ def verify_2fa(
             detail="Superaste el límite de intentos. Solicitá un código nuevo.",
         )
 
-    if usuario.otp_code != code:
+    if not verify_otp(code, usuario.otp_code):
         usuario.otp_attempts = (usuario.otp_attempts or 0) + 1
         db.commit()
         raise HTTPException(
@@ -626,6 +627,7 @@ def login_with_google(
     )
 
     if usuario:
+        _check_estado(usuario)
         return usuario, GoogleLoginResponse(
             access_token=_issue_token(usuario)
         )
@@ -637,6 +639,7 @@ def login_with_google(
     )
 
     if usuario:
+        _check_estado(usuario)
         if usuario.google_id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,

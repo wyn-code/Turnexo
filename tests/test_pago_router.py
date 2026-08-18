@@ -1,11 +1,31 @@
+import hashlib
+import hmac
+import time
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
+from app.core.config import MERCADOPAGO_ACCESS_TOKEN
 from app.models.plan import Plan
 from app.models.plan_feature import PlanFeature
 from app.models.suscripcion import Suscripcion
 from app.services import payment_service
 from tests.auth_helpers import obtener_token
+
+
+def _firma_mp(
+    payment_id: str,
+    request_id: str | None = None,
+    ts: str | None = None,
+) -> tuple[str, str]:
+    ts = ts or str(int(time.time()))
+    request_id = request_id or "req-test-1"
+    manifest = f"id:{payment_id};request-id:{request_id};ts:{ts}"
+    v1 = hmac.new(
+        MERCADOPAGO_ACCESS_TOKEN.encode(),
+        manifest.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"ts={ts},v1={v1}", request_id
 
 
 def _headers_duenio(client):
@@ -208,11 +228,14 @@ def test_webhook_pago_aprobado(client, db, seed_data):
         },
     }
 
+    sig, request_id = _firma_mp("12345")
+
     with patch.object(payment_service.sdk, "payment") as mock_payment:
         mock_payment.return_value.get.return_value = mock_payment_response
 
         response = client.post(
             "/api/pagos/webhook?topic=payment&id=12345",
+            headers={"x-signature": sig, "x-request-id": request_id},
         )
 
     assert response.status_code == 200
@@ -224,3 +247,68 @@ def test_webhook_pago_aprobado(client, db, seed_data):
     )
     assert suscripcion is not None
     assert suscripcion.estado == "activa"
+    assert suscripcion.mp_payment_id == "12345"
+
+
+def test_webhook_firma_ausente(client, db, seed_data):
+    response = client.post("/api/pagos/webhook?topic=payment&id=12345")
+
+    assert response.status_code == 401
+
+
+def test_webhook_firma_invalida(client, db, seed_data):
+    response = client.post(
+        "/api/pagos/webhook?topic=payment&id=12345",
+        headers={
+            "x-signature": "ts=123,v1=hashincorrecto",
+            "x-request-id": "req-test",
+        },
+    )
+
+    assert response.status_code == 401
+
+
+def test_webhook_pago_replay_idempotente(client, db, seed_data):
+    plan = _crear_plan_basico(db)
+    negocio = seed_data["negocio"]
+
+    external_ref = f"{negocio.id_negocio}:{plan.id_plan}"
+
+    mock_payment_response = {
+        "status": 200,
+        "response": {
+            "status": "approved",
+            "external_reference": external_ref,
+            "preference_id": "pref_replay_1",
+        },
+    }
+
+    sig, request_id = _firma_mp("99999")
+
+    with patch.object(payment_service.sdk, "payment") as mock_payment:
+        mock_payment.return_value.get.return_value = mock_payment_response
+
+        client.post(
+            "/api/pagos/webhook?topic=payment&id=99999",
+            headers={"x-signature": sig, "x-request-id": request_id},
+        )
+
+    suscripcion = (
+        db.query(Suscripcion)
+        .filter(Suscripcion.id_negocio == negocio.id_negocio)
+        .first()
+    )
+    assert suscripcion is not None
+    assert suscripcion.mp_payment_id == "99999"
+    fecha_fin_1 = suscripcion.fecha_fin
+
+    with patch.object(payment_service.sdk, "payment") as mock_payment:
+        mock_payment.return_value.get.return_value = mock_payment_response
+
+        client.post(
+            "/api/pagos/webhook?topic=payment&id=99999",
+            headers={"x-signature": sig, "x-request-id": request_id},
+        )
+
+    db.refresh(suscripcion)
+    assert suscripcion.fecha_fin == fecha_fin_1

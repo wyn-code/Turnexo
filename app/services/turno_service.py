@@ -462,6 +462,27 @@ def listar_turnos_por_negocio_y_rango(
     return query.order_by(Turno.fecha_hora_inicio.asc()).all()
 
 
+def listar_turnos_disponibilidad(
+    db: Session,
+    id_negocio: int,
+    desde: datetime,
+    hasta: datetime,
+    id_empleado: int | None = None,
+):
+    """Turnos ocupados de un negocio (solo slots, sin datos del cliente).
+
+    Es el endpoint público que la página de reserva usa para calcular
+    disponibilidad; no debe exponer PII del cliente.
+    """
+    return listar_turnos_por_negocio_y_rango(
+        db,
+        id_negocio,
+        desde,
+        hasta,
+        id_empleado,
+    )
+
+
 def cambiar_estado_turno(
     db: Session,
     turno_id: int,

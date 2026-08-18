@@ -24,6 +24,7 @@ class Suscripcion(Base):
     renovacion_automatica = Column(Boolean, default=True)
     proveedor_pago = Column(String(50), nullable=True)
     external_subscription_id = Column(String(150), nullable=True)
+    mp_payment_id = Column(String(150), nullable=True, unique=True)
 
     negocio = relationship(
         "Negocio",

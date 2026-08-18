@@ -92,6 +92,20 @@ class TurnoResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class TurnoDisponibilidad(BaseModel):
+    id_turno: int
+    id_negocio: int
+    id_servicio: int
+    id_estado: int
+    id_empleado: Optional[int] = None
+
+    fecha_hora_inicio: datetime
+    fecha_hora_fin: Optional[datetime] = None
+    rechazado_motivo: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class CambiarEstadoTurno(BaseModel):
     id_estado: int
     rechazado_motivo: Optional[str] = None

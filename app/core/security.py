@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -14,6 +16,20 @@ def get_password_hash(password: str):
 
 def verify_password(plain_password: str, hashed_password: str):
     return pwd_context.verify(plain_password.strip(), hashed_password)
+
+
+def hash_otp(code: str) -> str:
+    return hmac.new(
+        SECRET_KEY.encode(),
+        code.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def verify_otp(code: str, hashed: str | None) -> bool:
+    if not hashed:
+        return False
+    return hmac.compare_digest(hash_otp(code), hashed)
 
 
 def create_access_token(subject: str | Any, expires_delta: timedelta) -> str:

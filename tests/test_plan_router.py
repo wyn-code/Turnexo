@@ -83,15 +83,21 @@ def test_listar_planes_vacio(client, db):
 
 # ─── GET /api/planes/negocios/{id}/funciones ─────────────────────────────────
 
-def test_negocio_inexistente_devuelve_404(client, db):
-    response = client.get("/api/planes/negocios/999/funciones")
-    assert response.status_code == 404
+def test_negocio_inexistente_devuelve_403(client, db, seed_data):
+    response = client.get(
+        "/api/planes/negocios/999/funciones",
+        headers=_headers_duenio_negocio(client),
+    )
+    assert response.status_code == 403
 
 
 def test_negocio_free_devuelve_funciones_vacias(client, seed_data):
     negocio = seed_data["negocio"]
 
-    response = client.get(f"/api/planes/negocios/{negocio.id_negocio}/funciones")
+    response = client.get(
+        f"/api/planes/negocios/{negocio.id_negocio}/funciones",
+        headers=_headers_duenio_negocio(client),
+    )
     assert response.status_code == 200
 
     body = response.json()
@@ -106,7 +112,10 @@ def test_negocio_vip_devuelve_sus_funciones(client, db, seed_data):
     negocio = seed_data["negocio"]
     _crear_suscripcion_activa(db, negocio.id_negocio, plan.id_plan)
 
-    response = client.get(f"/api/planes/negocios/{negocio.id_negocio}/funciones")
+    response = client.get(
+        f"/api/planes/negocios/{negocio.id_negocio}/funciones",
+        headers=_headers_duenio_negocio(client),
+    )
     assert response.status_code == 200
 
     body = response.json()
@@ -124,7 +133,10 @@ def test_negocio_con_suscripcion_vencida_devuelve_funciones_vacias(client, db, s
     negocio = seed_data["negocio"]
     _crear_suscripcion_vencida(db, negocio.id_negocio, plan.id_plan)
 
-    response = client.get(f"/api/planes/negocios/{negocio.id_negocio}/funciones")
+    response = client.get(
+        f"/api/planes/negocios/{negocio.id_negocio}/funciones",
+        headers=_headers_duenio_negocio(client),
+    )
     assert response.status_code == 200
 
     body = response.json()

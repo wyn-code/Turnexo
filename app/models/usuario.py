@@ -95,7 +95,7 @@ class Usuario(Base):
     # ==========================
 
     otp_code = Column(
-        String(10),
+        String(64),
         nullable=True,
     )
 

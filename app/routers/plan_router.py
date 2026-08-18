@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, selectinload
 
-from app.core.dependencies import get_db
+from app.core.dependencies import get_current_negocio, get_db
 
 from app.schemas.plan_schema import NegocioFuncionesResponse, PlanResponse
 from app.services import plan_service
@@ -17,10 +17,13 @@ def listar_planes(db: Session = Depends(get_db)):
 
 
 @router.get("/negocios/{id_negocio}/funciones", response_model=NegocioFuncionesResponse)
-def obtener_funciones_negocio(id_negocio: int, db: Session = Depends(get_db)):
-    negocio = db.query(Negocio).filter(Negocio.id_negocio == id_negocio).first()
-    if not negocio:
-        raise HTTPException(status_code=404, detail="Negocio no encontrado")
+def obtener_funciones_negocio(
+    id_negocio: int,
+    db: Session = Depends(get_db),
+    negocio: Negocio = Depends(get_current_negocio),
+):
+    if negocio.id_negocio != id_negocio:
+        raise HTTPException(status_code=403, detail="No tenés acceso a este negocio")
 
     suscripcion = plan_service.obtener_suscripcion_activa(id_negocio, db)
     funciones = plan_service.obtener_funciones_negocio(id_negocio, db)

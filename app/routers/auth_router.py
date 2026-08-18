@@ -14,7 +14,6 @@ from app.services.auth_service import (
     set_password,
 )
 from app.schemas.auth_schema import (
-    AuthResponse,
     ForgotPasswordRequest,
     GoogleLoginRequest,
     GoogleLoginResponse,
@@ -36,7 +35,9 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 @router.post("/register")
+@limiter.limit("5/minute")
 def register(
+    request: Request,
     payload: RegisterRequest,
     db: Session = Depends(get_db),
 ):
@@ -118,13 +119,15 @@ def test_email():
     }
 
 @router.post("/forgot-password")
+@limiter.limit("5/minute")
 def forgot_password_endpoint(
-    request: ForgotPasswordRequest,
+    request: Request,
+    forgot_password_payload: ForgotPasswordRequest,
     db: Session = Depends(get_db),
 ):
     return forgot_password(
         db,
-        request.email_us,
+        forgot_password_payload.email_us,
     )
 
 

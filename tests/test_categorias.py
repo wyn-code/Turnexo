@@ -1,11 +1,34 @@
-def test_crear_categoria_con_icono_url_y_descripcion(client):
+from datetime import datetime, timezone
+
+from app.core.security import get_password_hash
+from app.models.usuario import Usuario
+from tests.auth_helpers import obtener_token
+
+
+def _admin_headers(client, db):
+    usuario = db.query(Usuario).filter(Usuario.usuario_us == "admin").first()
+    if not usuario:
+        usuario = Usuario(
+            usuario_us="admin",
+            email_us="admin@test.com",
+            contrasena_us=get_password_hash("Admin1234567!"),
+            email_verified=True,
+            last_2fa_verified_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            role="admin",
+        )
+        db.add(usuario)
+        db.commit()
+    return obtener_token(client, "admin@test.com", "Admin1234567!")
+
+
+def test_crear_categoria_con_icono_url_y_descripcion(client, db):
     data = {
         "nombre": "Barberia",
         "icono": "https://example.com/barberia.jpg",
         "descripcion": "Cortes masculinos y barba",
     }
 
-    response = client.post("/api/categorias/", json=data)
+    response = client.post("/api/categorias/", json=data, headers=_admin_headers(client, db))
 
     assert response.status_code == 200
     body = response.json()
@@ -15,7 +38,8 @@ def test_crear_categoria_con_icono_url_y_descripcion(client):
     assert body["descripcion"] == data["descripcion"]
 
 
-def test_listar_categorias_ordenadas_por_nombre(client):
+def test_listar_categorias_ordenadas_por_nombre(client, db):
+    headers = _admin_headers(client, db)
     client.post(
         "/api/categorias/",
         json={
@@ -23,6 +47,7 @@ def test_listar_categorias_ordenadas_por_nombre(client):
             "icono": "https://example.com/unas.png",
             "descripcion": "Manicuria",
         },
+        headers=headers,
     )
     client.post(
         "/api/categorias/",
@@ -31,6 +56,7 @@ def test_listar_categorias_ordenadas_por_nombre(client):
             "icono": "https://example.com/barberia.jpg",
             "descripcion": "Barba",
         },
+        headers=headers,
     )
 
     response = client.get("/api/categorias/")
@@ -40,7 +66,8 @@ def test_listar_categorias_ordenadas_por_nombre(client):
     assert nombres == sorted(nombres)
 
 
-def test_actualizar_categoria_permite_limpiar_icono_y_descripcion(client):
+def test_actualizar_categoria_permite_limpiar_icono_y_descripcion(client, db):
+    headers = _admin_headers(client, db)
     created = client.post(
         "/api/categorias/",
         json={
@@ -48,11 +75,13 @@ def test_actualizar_categoria_permite_limpiar_icono_y_descripcion(client):
             "icono": "https://example.com/masajes.webp",
             "descripcion": "Masajes relajantes",
         },
+        headers=headers,
     ).json()
 
     response = client.put(
         f"/api/categorias/{created['id_categoria']}",
         json={"icono": None, "descripcion": ""},
+        headers=headers,
     )
 
     assert response.status_code == 200
@@ -61,7 +90,7 @@ def test_actualizar_categoria_permite_limpiar_icono_y_descripcion(client):
     assert body["descripcion"] is None
 
 
-def test_rechaza_url_no_http(client):
+def test_rechaza_url_no_http(client, db):
     response = client.post(
         "/api/categorias/",
         json={
@@ -69,6 +98,7 @@ def test_rechaza_url_no_http(client):
             "icono": "ftp://example.com/estetica.jpg",
             "descripcion": "Tratamientos de belleza",
         },
+        headers=_admin_headers(client, db),
     )
 
     assert response.status_code == 400

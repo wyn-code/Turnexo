@@ -103,12 +103,31 @@ def crear_preferencia_mp(db: Session, negocio: Negocio, plan: Plan) -> dict:
     return payload
 
 
-def procesar_pago_exitoso(db: Session, negocio_id: int, plan_id: int, preference_id: str) -> Suscripcion:
+def procesar_pago_exitoso(
+    db: Session,
+    negocio_id: int,
+    plan_id: int,
+    preference_id: str,
+    payment_id: str | None = None,
+) -> Suscripcion:
     plan = db.query(Plan).filter(Plan.id_plan == plan_id).first()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan no encontrado")
 
     now = datetime.now()
+
+    if payment_id:
+        existente = (
+            db.query(Suscripcion)
+            .filter(Suscripcion.mp_payment_id == payment_id)
+            .first()
+        )
+        if existente:
+            logger.info(
+                "MP webhook: payment %s ya procesado (idempotencia), se ignora",
+                payment_id,
+            )
+            return existente
 
     suscripcion = None
     if preference_id:
@@ -155,11 +174,14 @@ def procesar_pago_exitoso(db: Session, negocio_id: int, plan_id: int, preference
             renovacion_automatica=True,
             proveedor_pago="mercadopago",
             external_subscription_id=preference_id,
+            mp_payment_id=payment_id,
         )
         db.add(suscripcion)
     else:
         if preference_id:
             suscripcion.external_subscription_id = preference_id
+        if payment_id:
+            suscripcion.mp_payment_id = payment_id
         if suscripcion.estado == "activa":
             vigente = suscripcion.fecha_fin and suscripcion.fecha_fin > now
             base = suscripcion.fecha_fin if vigente else now
@@ -264,6 +286,18 @@ def procesar_subscripcion_mp(
             subscription_id,
         )
         return None
+
+    if (
+        suscripcion.estado == "activa"
+        and suscripcion.fecha_fin
+        and suscripcion.fecha_fin > now + timedelta(days=1)
+    ):
+        logger.info(
+            "MP webhook: suscripción %s ya activa hasta %s (posible replay), se ignora",
+            subscription_id,
+            suscripcion.fecha_fin,
+        )
+        return suscripcion
 
     suscripcion.estado = "activa"
     vigente = suscripcion.fecha_fin and suscripcion.fecha_fin > now
