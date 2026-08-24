@@ -1,5 +1,6 @@
 from sqlalchemy.orm import relationship
-from sqlalchemy import Boolean, Column, Integer, String, ForeignKey
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, ForeignKey, func
+from sqlalchemy.sql import functions
 
 from app.db.base import Base
 
@@ -12,6 +13,9 @@ class Empleado(Base):
     apellido = Column(String(30), nullable=False)
     telefono = Column(String(30), unique=True, nullable=True)
     activo = Column(Boolean, nullable=False)
+    calendario_token = Column(String(64), unique=True, nullable=True)
+    calendario_token_revoked_at = Column(DateTime(timezone=True), nullable=True)
+    calendario_enviado_at = Column(DateTime(timezone=True), nullable=True)
     id_negocio = Column(
     Integer,
     ForeignKey(

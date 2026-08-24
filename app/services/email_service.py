@@ -1,11 +1,7 @@
+"""Email sending services for TurnoGo."""
 import resend
 
-from app.core.config import (
-    RESEND_API_KEY,
-    FRONTEND_URL,
-    BACKEND_URL,
-
-)
+from app.core.config import RESEND_API_KEY, FRONTEND_URL
 from app.services.qr_service import generar_qr_png_bytes
 
 resend.api_key = RESEND_API_KEY
@@ -17,12 +13,12 @@ def send_verification_email(
     email: str,
     token: str,
 ):
+    """Send an email verification link to the user."""
     verification_link = (
-    f"{FRONTEND_URL}/verify-email/{token}"
-    )   
+        f"{FRONTEND_URL}/verify-email/{token}")
 
     params = {
-        "from": "Turnogo <contacto@turnogo.app>",
+        "from": FROM_ADDRESS,
         "to": [email],
         "subject": "Verificá tu cuenta",
         "html": f"""
@@ -52,34 +48,28 @@ def send_reset_password_email(
     email: str,
     token: str,
 ):
-    reset_link = (
-        f"{FRONTEND_URL}/restablecer-contrasena/{token}"
-    )
+    """Send a password reset email to the user."""
+    reset_link = f"{FRONTEND_URL}/restablecer-contrasena/{token}"
 
     params = {
-        "from": "Turnogo <contacto@turnogo.app>",
+        "from": FROM_ADDRESS,
         "to": [email],
         "subject": "Restablecer contraseña",
         "html": f"""
             <h2>Restablecer contraseña</h2>
-
             <p>
                 Recibimos una solicitud para cambiar
                 la contraseña de tu cuenta.
             </p>
-
             <p>
                 Hacé click en el siguiente enlace:
             </p>
-
             <a href="{reset_link}">
                 Restablecer contraseña
             </a>
-
             <p>
                 Este enlace expirará en 24 horas.
             </p>
-
             <p>
                 Si no solicitaste el cambio, ignorá
                 este mensaje.
@@ -87,79 +77,15 @@ def send_reset_password_email(
         """,
     }
 
-    response = resend.Emails.send(params)
-
     try:
         response = resend.Emails.send(params)
         print("=== RESPUESTA RESEND ===")
         print(response)
         return response
     except Exception as e:
-        print(f"=== ERROR ENVIANDO EMAIL RESET PASSWORD ===")
+        print("=== ERROR ENVIANDO EMAIL RESET PASSWORD ===")
         print(f"Error: {e}")
         raise
-    return resend.Emails.send(params)
-
-
-def send_cancellation_email(
-    email: str,
-    id_turno: int,
-    nombre_negocio: str,
-    nombre_servicio: str,
-    fecha: str,
-    hora: str,
-    motivo: str,
-):
-    """Send a cancellation notification email to the client."""
-    if not email:
-        return
-
-    html = f"""
-    <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#222;">
-        <h2 style="color:#dc2626;">Tu turno ha sido cancelado</h2>
-
-        <p>Lamentablemente, tu turno en <strong>{nombre_negocio}</strong>
-           ha sido cancelado por el negocio.</p>
-
-        <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-            <tr>
-                <td style="padding:6px 0;color:#555;">Servicio</td>
-                <td style="padding:6px 0;font-weight:600;">{nombre_servicio}</td>
-            </tr>
-            <tr>
-                <td style="padding:6px 0;color:#555;">Fecha</td>
-                <td style="padding:6px 0;font-weight:600;">{fecha}</td>
-            </tr>
-            <tr>
-                <td style="padding:6px 0;color:#555;">Hora</td>
-                <td style="padding:6px 0;font-weight:600;">{hora}</td>
-            </tr>
-        </table>
-
-        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 16px;margin:16px 0;">
-            <p style="margin:0;color:#991b1b;font-weight:600;">Motivo de cancelación:</p>
-            <p style="margin:4px 0 0;color:#7f1d1d;">{motivo}</p>
-        </div>
-
-        <p style="font-size:13px;color:#666;">
-            Si tenés consultas, comunicate directamente con el negocio.
-        </p>
-
-        <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
-        <p style="font-size:12px;color:#aaa;text-align:center;">
-            Reservado a través de TurnoGo
-        </p>
-    </div>
-    """
-
-    params = {
-        "from": FROM_ADDRESS,
-        "to": [email],
-        "subject": f"Turno cancelado en {nombre_negocio}",
-        "html": html,
-    }
-
-    return resend.Emails.send(params)
 
 
 def send_booking_confirmation_email(
@@ -258,6 +184,7 @@ def send_booking_confirmation_email(
 
     return resend.Emails.send(params)
 
+
 def send_two_factor_email(
     email: str,
     code: str,
@@ -336,14 +263,14 @@ def send_two_factor_email(
         print(e)
         raise
 
-def send_account_linked_email(
-    email: str,
-):
+
+def send_account_linked_email(email: str,):
+    """Envía un correo notificando que la cuenta fue vinculada con Google."""
     params = {
         "from": FROM_ADDRESS,
         "to": [email],
         "subject": "Vinculaste tu cuenta con Google",
-        "html": f"""
+        "html": """
         <div style="font-family: Arial, sans-serif; max-width:600px; margin:auto;">
             <h2>Cuenta vinculada con Google</h2>
 
@@ -371,10 +298,7 @@ def send_account_linked_email(
     return resend.Emails.send(params)
 
 
-def send_otp_email(
-    email: str,
-    code: str,
-):
+def send_otp_email(email: str, code: str):
     params = {
         "from": FROM_ADDRESS,
         "to": [email],
@@ -404,6 +328,142 @@ def send_otp_email(
             <p>
                 Si no intentaste iniciar sesión,
                 simplemente ignorá este correo.
+            </p>
+
+            <hr>
+
+            <p style="font-size:12px;color:#888;">
+                Equipo de TurnoGo
+            </p>
+        </div>
+        """,
+    }
+
+    return resend.Emails.send(params)
+
+
+def send_calendario_email(
+    email: str,
+    link: str,
+    nombre_empleado: str,
+):
+    """Envía el link del feed de calendario (.ics) a un empleado."""
+    params = {
+        "from": FROM_ADDRESS,
+        "to": [email],
+        "subject": "Tu calendario de turnos en TurnoGo",
+        "html": f"""
+        <div style="font-family: Arial, sans-serif; max-width:600px; margin:auto;">
+            <h2>Tu calendario de turnos</h2>
+
+            <p>
+                Hola {nombre_empleado}, ya podés agregar tus turnos
+                a Google Calendar (u otro cliente compatible con
+                calendarios por suscripción).
+            </p>
+
+            <p>Copiá este link:</p>
+
+            <p style="
+                background:#f3f4f6;
+                border-radius:8px;
+                padding:12px 16px;
+                word-break:break-all;
+                font-size:14px;
+                color:#111827;
+            ">
+                {link}
+            </p>
+
+            <p>Para agregarlo en Google Calendar:</p>
+
+            <ol style="color:#4b5563;font-size:15px;">
+                <li>Abrí Google Calendar</li>
+                <li>Andá a "Otros calendarios" y hacé click en "+"</li>
+                <li>Elegí "Desde URL"</li>
+                <li>Pegá el link de arriba</li>
+            </ol>
+
+            <p>
+                Va a aparecer un calendario nuevo llamado
+                <strong>TurnoGo - {nombre_empleado}</strong>,
+                separado de tus eventos personales.
+            </p>
+
+            <p style="font-size:13px;color:#666;">
+                Nota: Google Calendar actualiza los calendarios externos
+                de forma periódica, no al instante. Un turno nuevo puede
+                tardar algunas horas en aparecer.
+            </p>
+
+            <hr>
+
+            <p style="font-size:12px;color:#888;">
+                Equipo de TurnoGo
+            </p>
+        </div>
+        """,
+    }
+
+    return resend.Emails.send(params)
+
+
+def send_cancellation_email(
+    email: str,
+    id_turno: int,
+    nombre_negocio: str,
+    nombre_servicio: str,
+    fecha: str,
+    hora: str,
+    motivo: str,
+):
+    """Envía un correo notificando al cliente la cancelación de su turno."""
+    params = {
+        "from": FROM_ADDRESS,
+        "to": [email],
+        "subject": "Tu turno fue cancelado - TurnoGo",
+        "html": f"""
+        <div style="font-family: Arial, sans-serif; max-width:600px; margin:auto;">
+            <h2>Turno cancelado</h2>
+
+            <p>
+                Hola, te informamos que tu turno fue cancelado.
+            </p>
+
+            <div style="
+                background:#f3f4f6;
+                border-radius:8px;
+                padding:16px;
+                margin:20px 0;
+            ">
+                <p>
+                    <strong>Negocio:</strong> {nombre_negocio}
+                </p>
+                <p>
+                    <strong>Servicio:</strong> {nombre_servicio}
+                </p>
+                <p>
+                    <strong>Fecha:</strong> {fecha}
+                </p>
+                <p>
+                    <strong>Hora:</strong> {hora}
+                </p>
+                <p>
+                    <strong>Turno:</strong> #{id_turno}
+                </p>
+            </div>
+
+            <p>
+                <strong>Motivo de la cancelación:</strong>
+            </p>
+
+            <p>
+                {motivo}
+            </p>
+
+            <p>
+                Si necesitás reservar un nuevo turno, podés hacerlo
+                nuevamente desde TurnoGo.
             </p>
 
             <hr>

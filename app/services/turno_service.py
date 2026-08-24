@@ -113,7 +113,7 @@ def validar_turno_dentro_del_horario(
         cruza_medianoche = cierre <= apertura
 
         if cruza_medianoche:
-            hora_en_rango = lambda t: t >= apertura or t <= cierre
+            def hora_en_rango(t): return t >= apertura or t <= cierre
             if hora_en_rango(hora_inicio) and hora_en_rango(hora_fin):
                 return
         else:
@@ -257,7 +257,8 @@ def crear_turno(db: Session, turno: TurnoCrear, background_tasks: BackgroundTask
         )
 
     # Buscamos los datos del cliente para WhatsApp ANTES de crear el turno
-    cliente = db.query(Cliente).filter(Cliente.id_cliente == turno.id_cliente).first()
+    cliente = db.query(Cliente).filter(
+        Cliente.id_cliente == turno.id_cliente).first()
     if not cliente:
         raise HTTPException(
             status_code=404,  # Cambiado a 404 estándar de HTTP para Not Found
@@ -289,7 +290,8 @@ def crear_turno(db: Session, turno: TurnoCrear, background_tasks: BackgroundTask
         if cliente.email:
             fecha_str = turno.fecha_hora_inicio.strftime("%d/%m/%Y")
             hora_str = turno.fecha_hora_inicio.strftime("%H:%M")
-            nombre_negocio = servicio.negocio.nombre if hasattr(servicio, "negocio") else "TurnoGo"
+            nombre_negocio = servicio.negocio.nombre if hasattr(
+                servicio, "negocio") else "TurnoGo"
             nombre_empleado = None
             if turno.id_empleado:
                 emp = db.query(Empleado).filter(
@@ -307,8 +309,10 @@ def crear_turno(db: Session, turno: TurnoCrear, background_tasks: BackgroundTask
                 nombre_empleado=nombre_empleado,
                 fecha=fecha_str,
                 hora=hora_str,
-                direccion=servicio.negocio.direccion if hasattr(servicio, "negocio") else None,
-                telefono_negocio=servicio.negocio.telefono if hasattr(servicio, "negocio") else None,
+                direccion=servicio.negocio.direccion if hasattr(
+                    servicio, "negocio") else None,
+                telefono_negocio=servicio.negocio.telefono if hasattr(
+                    servicio, "negocio") else None,
             )
 
         return nuevo_turno
