@@ -6,6 +6,7 @@ from app.services.georef_service import (
     obtener_provincias,
     obtener_localidades
 )
+from typing import Optional
 
 router = APIRouter(
     prefix="/georef",
@@ -19,5 +20,5 @@ def provincias(db: Session = Depends(get_db)):
 
 
 @router.get("/localidades", response_model=list[LocalidadResponse])
-def localidades(id_provincia: int, db: Session = Depends(get_db)):
+def localidades(id_provincia: Optional[int] = None, db: Session = Depends(get_db)):
     return obtener_localidades(db, id_provincia)

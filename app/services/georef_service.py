@@ -1,5 +1,5 @@
 # georef_service.py
-import requests
+from typing import Optional
 from sqlalchemy.orm import Session
 from app.models.provincia import Provincia
 from app.models.localidad import Localidad
@@ -15,14 +15,11 @@ def obtener_provincias(db: Session):
     ]
 
 
-def obtener_localidades(db: Session, id_provincia: int):
-    localidades = (
-        db.query(Localidad)
-        .filter(Localidad.id_provincia == id_provincia)
-        .order_by(Localidad.nombre)
-        .all()
-    )
+def obtener_localidades(db: Session, id_provincia: Optional[int] = None):
+    query = db.query(Localidad)
+    if id_provincia is not None:
+        query = query.filter(Localidad.id_provincia == id_provincia)
     return [
         {"id_localidad": l.id_localidad, "nombre": l.nombre}
-        for l in localidades
+        for l in query.order_by(Localidad.nombre).all()
     ]
