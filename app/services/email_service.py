@@ -1,8 +1,10 @@
 """Email sending services for TurnoGo."""
+from datetime import datetime
+
 import resend
 
 from app.core.config import RESEND_API_KEY, FRONTEND_URL
-from app.services.qr_service import generar_qr_png_bytes
+from app.services.qr_service import generar_qr_png_bytes, generar_token_qr
 
 resend.api_key = RESEND_API_KEY
 
@@ -91,10 +93,12 @@ def send_reset_password_email(
 def send_booking_confirmation_email(
     email: str,
     id_turno: int,
+    id_negocio: int,
     nombre_negocio: str,
     nombre_servicio: str,
     nombre_empleado: str | None,
     fecha: str,
+    fecha_hora_fin: datetime,
     hora: str,
     direccion: str | None,
     telefono_negocio: str | None,
@@ -103,7 +107,13 @@ def send_booking_confirmation_email(
     if not email:
         return
 
-    qr_bytes = generar_qr_png_bytes(id_turno)
+    token_qr = generar_token_qr(
+    id_turno=id_turno,
+    id_negocio=id_negocio,
+    fecha_hora_fin=fecha_hora_fin,
+)
+
+    qr_bytes = generar_qr_png_bytes(token_qr)
 
     empleado_html = (
         f'<tr><td style="padding:6px 0;color:#555;">Profesional</td>'

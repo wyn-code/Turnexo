@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.estados_turno import (
     PENDIENTE, CONFIRMADO, COMPLETADO, CANCELADO, NO_ASISTIO,
+    ATENDIDO_STATES,
 )
 from app.models.turnos import Turno
 from app.models.servicio import Servicio
@@ -12,7 +13,7 @@ from app.models.empleado import Empleado
 from app.models.cliente import Cliente
 
 
-ACTIVE_STATES = [PENDIENTE, CONFIRMADO, COMPLETADO]
+ACTIVE_STATES = [PENDIENTE, CONFIRMADO, *ATENDIDO_STATES]
 
 
 def _date_range(date_start: date | None, date_end: date | None):
@@ -110,7 +111,7 @@ class StatisticsService:
             .filter(
                 Turno.id_negocio == bid,
                 func.date(Turno.fecha_hora_inicio).between(start, end),
-                Turno.id_estado == COMPLETADO,
+                Turno.id_estado.in_(ATENDIDO_STATES),
             )
             .scalar()
         )
@@ -379,7 +380,7 @@ class StatisticsService:
                 func.coalesce(
                     func.sum(
                         case(
-                            (Turno.id_estado == COMPLETADO, Servicio.precio),
+                            (Turno.id_estado.in_(ATENDIDO_STATES), Servicio.precio),
                             else_=0,
                         )
                     ),
@@ -474,9 +475,9 @@ class StatisticsService:
         mensual = self._sum_revenue_in_range(bid, month_start, today)
         prev_mensual = self._sum_revenue_in_range(bid, _month_ago(month_start), _month_ago(today))
 
-        completed = [t for t in turnos if t.id_estado == COMPLETADO]
+        completed = [t for t in turnos if t.id_estado in ATENDIDO_STATES]
         ticket = mensual / len(completed) if completed else 0.0
-        prev_completed_count = sum(1 for t in prev_turnos if t.id_estado == COMPLETADO)
+        prev_completed_count = sum(1 for t in prev_turnos if t.id_estado in ATENDIDO_STATES)
         prev_ticket = prev_mensual / prev_completed_count if prev_completed_count else 0.0
 
         evolucion = self._monthly_income_evol(bid)
@@ -612,7 +613,7 @@ class StatisticsService:
     # ------------------------------------------------------------------
 
     def _build_asistencia(self, bid, start, end, turnos):
-        completados = sum(1 for t in turnos if t.id_estado == COMPLETADO)
+        completados = sum(1 for t in turnos if t.id_estado in ATENDIDO_STATES)
         cancelados = sum(1 for t in turnos if t.id_estado == CANCELADO)
         no_show = sum(1 for t in turnos if t.id_estado == NO_ASISTIO)
         pendientes = sum(1 for t in turnos if t.id_estado in [PENDIENTE, CONFIRMADO])
@@ -648,7 +649,7 @@ class StatisticsService:
         results = []
         for eid, nombre, apellido in emp_rows:
             emp_turnos = [t for t in turnos if t.id_empleado == eid and t.id_estado in ACTIVE_STATES]
-            emp_completed = [t for t in turnos if t.id_empleado == eid and t.id_estado == COMPLETADO]
+            emp_completed = [t for t in turnos if t.id_empleado == eid and t.id_estado in ATENDIDO_STATES]
             ingresos = sum(
                 t.servicio.precio for t in emp_completed if t.servicio
             )

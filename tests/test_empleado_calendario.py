@@ -371,6 +371,22 @@ def _extraer_token(link):
     return match.group(1)
 
 
+def _fecha_manana_a_las_10_utc():
+    """
+    Devuelve un datetime UTC correspondiente a mañana a las 10:00 UTC.
+
+    Se usa una fecha futura relativa a hoy para que el turno caiga dentro
+    del rango que el feed incluye (fecha_hora_inicio >= ahora).
+    """
+    manana = datetime.now(timezone.utc) + timedelta(days=1)
+    return manana.replace(
+        hour=10,
+        minute=0,
+        second=0,
+        microsecond=0,
+    )
+
+
 # ============================================================================
 # TESTS
 # ============================================================================
@@ -706,15 +722,7 @@ class TestEmpleadoCalendario:
 
         datos = _crear_datos_calendario(db)
 
-        fecha_utc = datetime(
-            2026,
-            8,
-            25,
-            10,
-            0,
-            0,
-            tzinfo=timezone.utc,
-        )
+        fecha_utc = _fecha_manana_a_las_10_utc()
 
         turno = _crear_turno(
             db,
@@ -833,15 +841,7 @@ class TestEmpleadoCalendario:
 
         datos = _crear_datos_calendario(db)
 
-        fecha_inicio = datetime(
-            2026,
-            8,
-            25,
-            10,
-            0,
-            0,
-            tzinfo=timezone.utc,
-        )
+        fecha_inicio = _fecha_manana_a_las_10_utc()
 
         turno = _crear_turno(
             db,

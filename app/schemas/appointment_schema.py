@@ -27,7 +27,6 @@ class TurnoCrear(BaseModel):
 
 
 class TurnoActualizar(BaseModel):
-    id_negocio: Optional[int] = None
     id_cliente: Optional[int] = None
     id_servicio: Optional[int] = None
     id_estado: Optional[int] = None
@@ -38,7 +37,10 @@ class TurnoActualizar(BaseModel):
 
     @model_validator(mode="after")
     def validar_rango_horario(self):
-        _validar_rango_horario(self.fecha_hora_inicio, self.fecha_hora_fin)
+        _validar_rango_horario(
+            self.fecha_hora_inicio,
+            self.fecha_hora_fin,
+        )
         return self
 
 class ClienteSimple(BaseModel):
@@ -83,6 +85,7 @@ class TurnoResponse(BaseModel):
     rechazado_motivo: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    qr_token: Optional[str] = None
 
     cliente: ClienteSimple
     empleado: Optional[EmpleadoSimple] = None

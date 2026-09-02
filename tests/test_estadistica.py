@@ -51,6 +51,7 @@ CANCELADO = 4
 CONFIRMADO = 2
 PENDIENTE = 1
 NO_ASISTIO = 5
+ASISTIO = 6
 
 
 def test_statistics_returns_all_sections(client, seed_data, db):

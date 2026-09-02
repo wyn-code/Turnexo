@@ -13,6 +13,8 @@ from app.schemas.appointment_schema import (
     TurnoResponse,
     TurnoDisponibilidad,
 )
+from app.core.estados_turno import CONFIRMADO, COMPLETADO, CANCELADO, NO_ASISTIO, ASISTIO
+from app.services.qr_service import validar_token_qr
 from app.services.turno_service import (
     listar_turnos,
     obtener_turno_por_id,
@@ -79,6 +81,51 @@ def listar(
     db: Session = Depends(get_db),
 ):
     return listar_turnos(db, id_negocio=negocio.id_negocio)
+
+@router.post("/qr/check-in", response_model=TurnoResponse)
+def check_in_qr(
+    token: str,
+    background_tasks: BackgroundTasks,
+    negocio: Negocio = Depends(get_current_negocio),
+    db: Session = Depends(get_db),
+):
+    payload = validar_token_qr(token)
+
+    if payload["id_negocio"] != negocio.id_negocio:
+        raise HTTPException(
+            status_code=404,
+            detail="Turno no encontrado",
+        )
+
+    turno = obtener_turno_por_id(
+        db=db,
+        turno_id=payload["turno_id"],
+        id_negocio=negocio.id_negocio,
+    )
+
+    if turno.id_estado == ASISTIO:
+        raise HTTPException(
+            status_code=400,
+            detail="Este turno ya fue registrado como asistido",
+        )
+
+    if turno.id_estado != CONFIRMADO:
+        raise HTTPException(
+            status_code=400,
+            detail="Este turno no puede registrarse mediante QR",
+        )
+
+    datos = CambiarEstadoTurno(
+        id_estado=ASISTIO
+    )
+
+    return cambiar_estado_turno(
+        db=db,
+        turno_id=turno.id_turno,
+        datos=datos,
+        id_negocio=negocio.id_negocio,
+        background_tasks=background_tasks,
+    )
 
 
 @router.get("/{turno_id}", response_model=TurnoResponse)

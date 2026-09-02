@@ -144,7 +144,8 @@ def seed_data(db):
     db.flush()
 
     for eid, nombre in [(2, "Confirmado"), (3, "Completado"),
-                        (4, "Cancelado"), (5, "No asistio")]:
+                        (4, "Cancelado"), (5, "No asistio"),
+                        (6, "Asistio")]:
         db.add(EstadoTurno(id_estado=eid, nombre_estado=nombre))
     db.flush()
 

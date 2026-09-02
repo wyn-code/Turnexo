@@ -19,6 +19,7 @@ from app.models.turnos import Turno
 from app.schemas.appointment_schema import CambiarEstadoTurno, TurnoActualizar, TurnoCrear
 from app.services.email_service import send_booking_confirmation_email, send_cancellation_email
 from app.services.plan_service import negocio_tiene_funcion
+from app.services.qr_service import generar_token_qr
 
 
 SOLAPAMIENTO_DETALLE = "El empleado ya tiene un turno en ese horario"
@@ -32,15 +33,15 @@ def listar_turnos(db: Session, id_negocio: int | None = None):
     return query.all()
 
 
-def obtener_turno_por_id(db: Session, turno_id: int, id_negocio: int | None = None):
-    turno = db.query(Turno).filter(Turno.id_turno == turno_id).first()
+def obtener_turno_por_id(db: Session, turno_id: int, id_negocio: int):
+    turno = db.query(Turno).filter(Turno.id_turno == turno_id,
+                                   Turno.id_negocio == id_negocio).first()
 
     if not turno:
-        raise HTTPException(status_code=404, detail="Turno no encontrado")
-
-    if id_negocio is not None and turno.id_negocio != id_negocio:
-        raise HTTPException(status_code=404, detail="Turno no encontrado")
-
+        raise HTTPException(
+            status_code=404,
+            detail="Turno no encontrado"
+        )
     return turno
 
 
@@ -286,17 +287,34 @@ def crear_turno(db: Session, turno: TurnoCrear, background_tasks: BackgroundTask
         db.commit()
         db.refresh(nuevo_turno)
 
-        # Email de confirmación en background — no bloquea la respuesta 201
+        fecha_hora_fin_para_qr = nuevo_turno.fecha_hora_fin or (
+            nuevo_turno.fecha_hora_inicio +
+            timedelta(minutes=servicio.duracion_min)
+        )
+
+        # Generamos el token QR para devolverlo en la respuesta
+        nuevo_turno.qr_token = generar_token_qr(
+            id_turno=nuevo_turno.id_turno,
+            id_negocio=nuevo_turno.id_negocio,
+            fecha_hora_fin=fecha_hora_fin_para_qr,
+        )
+
+        # Email de confirmación en background
         if cliente.email:
             fecha_str = turno.fecha_hora_inicio.strftime("%d/%m/%Y")
             hora_str = turno.fecha_hora_inicio.strftime("%H:%M")
+
             nombre_negocio = servicio.negocio.nombre if hasattr(
-                servicio, "negocio") else "TurnoGo"
+                servicio, "negocio"
+            ) else "TurnoGo"
+
             nombre_empleado = None
+
             if turno.id_empleado:
                 emp = db.query(Empleado).filter(
                     Empleado.id_empleado == turno.id_empleado
                 ).first()
+
                 if emp:
                     nombre_empleado = f"{emp.nombre} {emp.apellido}".strip()
 
@@ -307,46 +325,68 @@ def crear_turno(db: Session, turno: TurnoCrear, background_tasks: BackgroundTask
                 nombre_negocio=nombre_negocio,
                 nombre_servicio=servicio.nombre_servicio,
                 nombre_empleado=nombre_empleado,
+                id_negocio=nuevo_turno.id_negocio,
+                fecha_hora_fin=fecha_hora_fin_para_qr,
                 fecha=fecha_str,
                 hora=hora_str,
                 direccion=servicio.negocio.direccion if hasattr(
-                    servicio, "negocio") else None,
+                    servicio, "negocio"
+                ) else None,
                 telefono_negocio=servicio.negocio.telefono if hasattr(
-                    servicio, "negocio") else None,
+                    servicio, "negocio"
+                ) else None,
             )
 
         return nuevo_turno
-
     except IntegrityError as e:
         db.rollback()
         _lanzar_error_integridad(e)
 
 
-def actualizar_turno(db: Session, turno_id: int, datos: TurnoActualizar, id_negocio: int | None = None):
-    turno_db = db.query(Turno).filter(Turno.id_turno == turno_id).first()
+def actualizar_turno(
+    db: Session,
+    turno_id: int,
+    datos: TurnoActualizar,
+    id_negocio: int,
+):
+    turno_db = (
+        db.query(Turno)
+        .filter(
+            Turno.id_turno == turno_id,
+            Turno.id_negocio == id_negocio,
+        )
+        .first()
+    )
 
     if not turno_db:
-        raise HTTPException(status_code=404, detail="Turno no encontrado")
+        raise HTTPException(
+            status_code=404,
+            detail="Turno no encontrado",
+        )
 
-    if id_negocio is not None and turno_db.id_negocio != id_negocio:
-        raise HTTPException(status_code=404, detail="Turno no encontrado")
+    # El negocio del turno NO puede modificarse.
+    nuevo_id_negocio = turno_db.id_negocio
 
-    nuevo_id_negocio = (
-        datos.id_negocio if datos.id_negocio is not None else turno_db.id_negocio
-    )
     nuevo_id_servicio = (
-        datos.id_servicio if datos.id_servicio is not None else turno_db.id_servicio
+        datos.id_servicio
+        if datos.id_servicio is not None
+        else turno_db.id_servicio
     )
+
     nuevo_id_empleado = (
-        datos.id_empleado if datos.id_empleado is not None else turno_db.id_empleado
+        datos.id_empleado
+        if datos.id_empleado is not None
+        else turno_db.id_empleado
     )
+
     nueva_fecha_inicio = (
         datos.fecha_hora_inicio
         if datos.fecha_hora_inicio is not None
         else turno_db.fecha_hora_inicio
     )
 
-    servicio = obtener_servicio_del_negocio(
+    # Verificamos que el servicio pertenezca al negocio.
+    obtener_servicio_del_negocio(
         db=db,
         id_servicio=nuevo_id_servicio,
         id_negocio=nuevo_id_negocio,
@@ -354,7 +394,6 @@ def actualizar_turno(db: Session, turno_id: int, datos: TurnoActualizar, id_nego
 
     recalcular_fin = (
         datos.id_servicio is not None
-        or datos.id_negocio is not None
         or datos.fecha_hora_inicio is not None
     )
 
@@ -370,18 +409,24 @@ def actualizar_turno(db: Session, turno_id: int, datos: TurnoActualizar, id_nego
         else turno_db.fecha_hora_fin
     )
 
-    validar_rango_horario(nueva_fecha_inicio, nueva_fecha_fin)
+    validar_rango_horario(
+        nueva_fecha_inicio,
+        nueva_fecha_fin,
+    )
+
     validar_empleado_del_negocio(
         db=db,
         id_negocio=nuevo_id_negocio,
         id_empleado=nuevo_id_empleado,
     )
+
     validar_turno_dentro_del_horario(
         db=db,
         id_negocio=nuevo_id_negocio,
         inicio=nueva_fecha_inicio,
         fin=nueva_fecha_fin,
     )
+
     if hay_superposicion(
         db=db,
         id_negocio=nuevo_id_negocio,
@@ -395,21 +440,32 @@ def actualizar_turno(db: Session, turno_id: int, datos: TurnoActualizar, id_nego
             detail=SOLAPAMIENTO_DETALLE,
         )
 
-    turno_db.id_negocio = nuevo_id_negocio
+    # Actualizamos únicamente los campos permitidos.
     turno_db.id_cliente = (
-        datos.id_cliente if datos.id_cliente is not None else turno_db.id_cliente
+        datos.id_cliente
+        if datos.id_cliente is not None
+        else turno_db.id_cliente
     )
+
     turno_db.id_servicio = nuevo_id_servicio
     turno_db.id_empleado = nuevo_id_empleado
     turno_db.fecha_hora_inicio = nueva_fecha_inicio
     turno_db.fecha_hora_fin = nueva_fecha_fin
 
+    # Cambio de estado.
     if datos.id_estado is not None:
-        if not validar_transicion(turno_db.id_estado, datos.id_estado):
+        if not validar_transicion(
+            turno_db.id_estado,
+            datos.id_estado,
+        ):
             raise HTTPException(
                 status_code=400,
-                detail=f"No se puede pasar del estado {turno_db.id_estado} al {datos.id_estado}",
+                detail=(
+                    f"No se puede pasar del estado "
+                    f"{turno_db.id_estado} al {datos.id_estado}"
+                ),
             )
+
         turno_db.id_estado = datos.id_estado
 
     if datos.rechazado_motivo is not None:
@@ -420,6 +476,7 @@ def actualizar_turno(db: Session, turno_id: int, datos: TurnoActualizar, id_nego
     try:
         db.commit()
         db.refresh(turno_db)
+    
         return turno_db
 
     except IntegrityError as e:
